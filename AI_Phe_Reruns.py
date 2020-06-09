@@ -6,9 +6,7 @@ from uncertainties import ufloat, covariance_matrix, correlation_matrix
 from uncertainties.umath import log10
 from scipy.interpolate import interp1d
 import flint
-import astropy.units as u
-from synphot import units, ReddeningLaw
-from scipy.special import legendre
+from synphot import ReddeningLaw
 import emcee
 import corner
 from multiprocessing import Pool
@@ -21,18 +19,6 @@ from functions import flux_ratio_priors, lnprob
 
 flux2mag = Flux2mag('AI Phe', extra_data, colors_data)
 
-for k in flux2mag.obs_mag.keys():
-    o = flux2mag.obs_mag[k]
-    w = flux2mag.w_pivot[k]
-    # print("{:4s} {:6.0f} {:6.4f}".format(k,w,o))
-# print("Color data")
-for col in flux2mag.colors_data:
-    s = col['tag']
-    t = col['type']
-    o = col['color']
-    # print("{:8s} {:3s} {:6.4f}".format(s,t,o))
-
-
 l = pickle.load(open("lratio_priors.pickle", "rb"))
 # Fix typo in R1, R2 values
 l['R1']['Value'] = ufloat(1.197, 0.024)
@@ -44,15 +30,12 @@ l['y']['Value'] = ufloat(1.036, 0.007)
 l['u320']['Value'] = ufloat(0.342, 0.042)
 l['u220n']['Value'] = ufloat(0.030, 0.066)
 l['u220w']['Value'] = ufloat(0.059, 0.090)
-# Fix broken Wavelength array for TESS entry
-# l['TESS']['Wavelength'] = np.array([10*float(s[:-1]) for s in l['TESS']['Wavelength']])
-# .. and update the value
 l['TESS']['Value'] = ufloat(1.319, 0.001)
+
 # Convert wavelength/response to interpolating functions
 lratios = {}
 for k in l.keys():
     if l[k]['Response'] is not None:
-
         d = {}
         d['Value'] = l[k]['Value']
         w = np.array(l[k]['Wavelength'], dtype='f8')
@@ -63,7 +46,7 @@ for k in l.keys():
         else:
             d['photon'] = False
         lratios[k] = d
-        print(k, d['Value'], d['photon'])
+
 # H-band flux ratio from Gallenne et al., 2019
 # Use a nominal error of 0.01
 k = 'H'
@@ -73,11 +56,9 @@ d = {
     'photon': True
 }
 lratios[k] = d
-# # print(k, d['Value'], d['photon'])
 
 
 frp = flux_ratio_priors(1.05, 6440, 5220)
-
 
 plx_Gallenne = ufloat(5.905, 0.024)
 gaia_zp = ufloat(-0.031, 0.011)
@@ -104,18 +85,12 @@ redlaw = ReddeningLaw.from_extinction_model('mwavg')
 # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
 # R_Sun = 6.957e8 m
 # parsec = 3.085677581e16 m
-# R_1 = ufloat(1.835, 0.014)    # JK-K values
-# R_2 = ufloat(2.912, 0.014)    # JK-K values
-R_1 = ufloat(1.8050, 0.0046)  # Prelimanary values from TESS analysis
-R_2 = ufloat(2.9343, 0.0034)  # Prelimanary values from TESS analysis
+R_1 = ufloat(1.8050, 0.0022)  # Final values from TESS light curve - Maxted et al. (2020)
+R_2 = ufloat(2.9332, 0.0023)  # Final values from TESS light curve - Maxted et al. (2020)
 theta1 = 2 * plx * R_1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
 theta2 = 2 * plx * R_2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
-# print('theta1 = {:0.4f} mas'.format(theta1))
-# print('theta2 = {:0.4f} mas'.format(theta2))
 theta_cov = covariance_matrix([theta1, theta2])[0][1]
 theta_cor = correlation_matrix([theta1, theta2])[0][1]
-# print('cov(theta_1,theta2) = {:0.2e}'.format(theta_cov))
-# print('cor(theta_1,theta2) = {:0.2f}'.format(theta_cor))
 
 Teff1 = 6223
 Teff2 = 5135
@@ -142,7 +117,7 @@ for pn, pv in zip(parname, params):
 lnlike = lnprob(params, flux2mag, lratios,
                 theta1, theta2, spec1, spec2,
                 ebv_prior, redlaw, Nc1, verbose=True)
-# print('Initial log-likelihood = {:0.2f}'.format(lnlike))
+print('Initial log-likelihood = {:0.2f}'.format(lnlike))
 
 
 nll = lambda *args: -lnprob(*args)
@@ -150,16 +125,11 @@ args = (flux2mag, lratios, theta1, theta2,
         spec1, spec2, ebv_prior, redlaw, Nc1)
 soln = minimize(nll, params, args=args, method='Nelder-Mead')
 
-# print('theta1 = {:0.4f} mas'.format(theta1))
-# print('theta2 = {:0.4f} mas'.format(theta2))
-# print()
-# for pn,pv in zip(parname, soln.x):
-#     print('{} = {}'.format(pn,pv))
+
 
 lnlike = lnprob(soln.x, flux2mag, lratios,
                 theta1, theta2, spec1, spec2,
                 ebv_prior, redlaw, Nc1, verbose=True)
-# print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
 
 steps = [25, 25,  # T_eff,1, T_eff,2
@@ -179,12 +149,12 @@ with Pool() as pool:
     sampler.run_mcmc(pos, nsteps, progress=True)
 
 af = sampler.acceptance_fraction
-# print('\nMedian acceptance fraction =',np.median(af))
+print('\nMedian acceptance fraction =',np.median(af))
 best_index = np.unravel_index(np.argmax(sampler.lnprobability),
                               (nwalkers, nsteps))
 best_lnlike = np.max(sampler.lnprobability)
-# print('\n Best log(likelihood) = ',best_lnlike,' in walker ',best_index[0],
-#        ' at step ',best_index[1])
+print('\n Best log(likelihood) = ',best_lnlike,' in walker ',best_index[0],
+       ' at step ',best_index[1])
 best_pars = sampler.chain[best_index[0], best_index[1], :]
 
 fig, axes = plt.subplots(4, figsize=(10, 7), sharex='all')
@@ -217,7 +187,7 @@ for i, pn in enumerate(parname):
 lnlike = lnprob(best_pars, flux2mag, lratios,
                 theta1, theta2, spec1, spec2,
                 ebv_prior, redlaw, Nc1, verbose=True)
-# print('Final log-likelihood = {:0.2f}'.format(lnlike))
+print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
 wave, flux, f_1, f_2, d1, d2 = lnprob(
     best_pars, flux2mag, lratios,
@@ -243,8 +213,8 @@ for i in range(0, len(flat_samples), len(flat_samples) // 64):
         ebv_prior, redlaw, Nc1, return_flux=True)
     ax1[1].semilogx(wave, _d1, c='b', alpha=0.1)
     ax1[2].semilogx(wave, _d2, c='b', alpha=0.1)
-
 fig.show()
+
 
 VegaZeroPointErrorPercent = 0.5
 Fig14Data = Table.read('Bohlin2014_Fig14.csv', names=['w', 'err'])
@@ -267,18 +237,18 @@ rnderr_1 = flat_samples[:, 0].std()
 fint_1 = simps(f_1, wave)
 fint_1p = simps(f_1 * (1 + TotSysErrPercentGrid / 100), wave)
 syserr_1 = (fint_1p / fint_1 - 1) * T_eff_1 / 4  # /4 because L \propto Teff^4
-# print('Systematic error in integrated flux = {:0.2%}%'.format((fint_1p/fint_1-1)))
-# print('T_eff,1 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
-#     format(T_eff_1, rnderr_1, syserr_1))
+print('Systematic error in integrated flux = {:0.2%}%'.format((fint_1p/fint_1-1)))
+print('T_eff,1 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
+    format(T_eff_1, rnderr_1, syserr_1))
 
 T_eff_2 = flat_samples[:, 1].mean()
 rnderr_2 = flat_samples[:, 1].std()
 fint_2 = simps(f_2, wave)
 fint_2p = simps(f_2 * (1 + TotSysErrPercentGrid / 100), wave)
 syserr_2 = (fint_2p / fint_2 - 1) * T_eff_2 / 4
-# print('Systematic error in integrated flux = {:0.2%}%'.format((fint_2p/fint_2-1)))
-# print('T_eff,2 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
-#          format(T_eff_2, rnderr_2, syserr_2))
+print('Systematic error in integrated flux = {:0.2%}%'.format((fint_2p/fint_2-1)))
+print('T_eff,2 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
+         format(T_eff_2, rnderr_2, syserr_2))
 
 
 tag = "C"

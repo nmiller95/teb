@@ -1,6 +1,7 @@
 from uncertainties import ufloat, correlation_matrix
 import numpy as np
 import astropy.units as u
+from synphot import units
 from scipy.special import legendre
 from scipy.integrate import simps
 
@@ -53,8 +54,8 @@ def lnprob(params,  # Model parameters and hyper-parameters
     wave = spec1.waveset
     i = ((wmin * u.angstrom < wave) & (wave < wmax * u.angstrom)).nonzero()
     wave = wave[i]
-    flux1 = spec1(wave, flux_unit=u.FLAM)
-    flux2 = spec2(wave, flux_unit=u.FLAM)
+    flux1 = spec1(wave, flux_unit=units.FLAM)
+    flux2 = spec2(wave, flux_unit=units.FLAM)
     wave = wave.value  # Converts to numpy array
     flux1 = flux1.value
     flux2 = flux2.value
