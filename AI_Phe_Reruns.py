@@ -4,7 +4,7 @@ from astropy.table import Table
 from scipy.integrate import simps
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
-from uncertainties import ufloat, covariance_matrix,correlation_matrix
+from uncertainties import ufloat, covariance_matrix, correlation_matrix
 from uncertainties.umath import log10
 from scipy.interpolate import interp1d
 import flint
@@ -15,6 +15,8 @@ import emcee
 import corner
 from multiprocessing import Pool
 import pickle
+from scipy.optimize import minimize
+from response import extra_data, colors_data
 
 
 class Flux2mag:
@@ -72,7 +74,7 @@ class Flux2mag:
 
         # Pivot wavelength using equation (A16) from Bessell & Murphy
         def wp(w, r):
-            return sqrt(simps(r * w, w) / simps(r / w, w))
+            return np.sqrt(simps(r * w, w) / simps(r / w, w))
 
         w_pivot = dict()
 
@@ -116,7 +118,7 @@ class Flux2mag:
             R[b] = interp1d(T['w'] * 1e4, T['T'], bounds_error=False, fill_value=0)
             w_pivot[b] = wp(T['w'] * 1e4, T['T'])
 
-        # Proces response functions in extra_data
+        # Process response functions in extra_data
         for x in extra_data:
             b = x['tag']
             w = x['wave']
@@ -252,111 +254,109 @@ class Flux2mag:
         return chisq, lnlike_m, lnlike_c
 
 
+# # Response functions for IUE fluxes
+# transmission = pickle.load(open("Response/transmission.pickle", "rb"))
+# wave = pickle.load(open("Response/wave.pickle", "rb"))
+#
+# u320 = {'tag': 'u320',
+#         'mag': -2.5 * log10(ufloat(1.846e-24, 6.034e-26)) - 48.6,
+#         'zp': ufloat(-48.60, round(2.5 * log10(1.040), 3)),  # 4% according to Nichols & Linsky (1996)
+#         'wave': wave,
+#         'resp': transmission[0]}
+# u220n = {'tag': 'u220n',
+#          'mag': -2.5 * log10(ufloat(9.713e-26, 8.924e-27)) - 48.6,
+#          'zp': ufloat(-48.60, round(2.5 * log10(1.040), 3)),  # 4% according to Nichols & Linsky (1996)
+#          'wave': wave,
+#          'resp': transmission[1]}
+# u220w = {'tag': 'u220w',
+#          'mag': -2.5 * log10(ufloat(8.583e-26, 9.401e-27)) - 48.6,
+#          'zp': ufloat(-48.60, round(2.5 * log10(1.040), 3)),  # 4% according to Nichols & Linsky (1996)
+#          'wave': wave,
+#          'resp': transmission[2]}
+#
+# # Zero point and error is average colour o-c offset and standard deviation
+#
+# stromgren_w, stromgren_r = {}, {}
+#
+# for x in ('u', 'v', 'b', 'y'):
+#     T = Table.read("Response/{}_Bessell2005.csv".format(x))
+#     stromgren_w[x] = np.array(T['wave'])
+#     stromgren_r[x] = np.array(T['response'])
+#
+# stromgren_v = {
+#     'u': 9.139833801171253e-07,
+#     'v': 1.2227871972005228e-06,
+#     'b': 1.0300321185051395e-06,
+#     'y': 7.412341517648064e-07
+# }
+#
+# # Colours from GCS III. Errors from Olsen 1994
+#
+# Gby = {'tag': '(b-y)_G',
+#        'type': 'by',
+#        'color': ufloat(0.431, 0.0037),
+#        'zp': ufloat(-0.0014, 0.0045),
+#        'wave': stromgren_w,
+#        'resp': stromgren_r,
+#        'vega_zp': stromgren_v}
+# Gm1 = {'tag': 'm1_G',
+#        'type': 'm1',
+#        'color': ufloat(0.209, 0.0041),
+#        'zp': ufloat(0.0243, 0.0062),
+#        'wave': stromgren_w,
+#        'resp': stromgren_r,
+#        'vega_zp': stromgren_v}
+# Gc1 = {'tag': 'c1_G',
+#        'type': 'c1',
+#        'color': ufloat(0.356, 0.0066),
+#        'zp': ufloat(-0.0102, 0.0083),
+#        'wave': stromgren_w,
+#        'resp': stromgren_r,
+#        'vega_zp': stromgren_v}
+#
+# # Colours Reipurth 1978
+#
+# Rby = {'tag': '(b-y)_R',
+#        'type': 'by',
+#        'color': ufloat(0.424, 0.0037),
+#        'zp': ufloat(-0.0014, 0.0045),
+#        'wave': stromgren_w,
+#        'resp': stromgren_r,
+#        'vega_zp': stromgren_v}
+# Rm1 = {'tag': 'm1_R',
+#        'type': 'm1',
+#        'color': ufloat(0.219, 0.0041),
+#        'zp': ufloat(0.0243, 0.0062),
+#        'wave': stromgren_w,
+#        'resp': stromgren_r,
+#        'vega_zp': stromgren_v}
+# Rc1 = {'tag': 'c1_R',
+#        'type': 'c1',
+#        'color': ufloat(0.357, 0.0066),
+#        'zp': ufloat(-0.0102, 0.0083),
+#        'wave': stromgren_w,
+#        'resp': stromgren_r,
+#        'vega_zp': stromgren_v}
 
-# Response functions for IUE fluxes
-transmission = pickle.load(open("Response/transmission.pickle", "rb"))
-wave = pickle.load(open("Response/wave.pickle", "rb"))
+# flux2mag = Flux2mag('AI Phe', extra_data=[u320, u220w, u220n],
+#                     colors_data=[Gby, Gm1, Gc1, Rby, Rm1, Rc1])
+flux2mag = Flux2mag('AI Phe', extra_data, colors_data)
 
-u320 = {'tag':'u320',
-        'mag':-2.5*log10(ufloat(1.846e-24,6.034e-26))-48.6,
-        'zp':ufloat(-48.60, round(2.5*log10(1.040),3)), # 4% according to Nichols & Linsky (1996)
-        'wave':wave,
-        'resp':transmission[0]}
-u220n = {'tag':'u220n',
-        'mag':-2.5*log10(ufloat(9.713e-26,8.924e-27))-48.6,
-        'zp':ufloat(-48.60, round(2.5*log10(1.040),3)), # 4% according to Nichols & Linsky (1996)
-        'wave':wave,
-        'resp':transmission[1]}
-u220w = {'tag':'u220w',
-        'mag':-2.5*log10(ufloat(8.583e-26,9.401e-27))-48.6,
-        'zp':ufloat(-48.60, round(2.5*log10(1.040),3)), # 4% according to Nichols & Linsky (1996)
-        'wave':wave,
-        'resp':transmission[2]}
-
-
-# Zero point and error is average colour o-c offset and standard deviation
-
-stromgren_w, stromgren_r = {}, {}
-
-for x in ('u','v','b','y'):
-    T = Table.read("Response/{}_Bessell2005.csv".format(x))
-    stromgren_w[x] = np.array(T['wave'])
-    stromgren_r[x] = np.array(T['response'])
-
-stromgren_v = {
-    'u':9.139833801171253e-07,
-    'v':1.2227871972005228e-06,
-    'b':1.0300321185051395e-06,
-    'y':7.412341517648064e-07
-}
-
-# Colours from GCS III. Errors from Olsen 1994
-
-Gby = {'tag':'(b-y)_G',
-      'type':'by',
-      'color':ufloat(0.431, 0.0037),
-      'zp':ufloat(-0.0014, 0.0045),
-      'wave':stromgren_w,
-      'resp':stromgren_r,
-      'vega_zp':stromgren_v}
-Gm1 = {'tag':'m1_G',
-      'type':'m1',
-      'color':ufloat(0.209, 0.0041),
-      'zp':ufloat(0.0243, 0.0062),
-      'wave':stromgren_w,
-      'resp':stromgren_r,
-      'vega_zp':stromgren_v}
-Gc1 = {'tag':'c1_G',
-      'type':'c1',
-      'color':ufloat(0.356, 0.0066),
-      'zp':ufloat(-0.0102, 0.0083),
-      'wave':stromgren_w,
-      'resp':stromgren_r,
-      'vega_zp':stromgren_v}
-
-# Colours Reipurth 1978
-
-Rby = {'tag':'(b-y)_R',
-      'type':'by',
-      'color':ufloat(0.424, 0.0037),
-      'zp':ufloat(-0.0014, 0.0045),
-      'wave':stromgren_w,
-      'resp':stromgren_r,
-      'vega_zp':stromgren_v}
-Rm1 = {'tag':'m1_R',
-      'type':'m1',
-      'color':ufloat(0.219, 0.0041),
-      'zp':ufloat(0.0243, 0.0062),
-      'wave':stromgren_w,
-      'resp':stromgren_r,
-      'vega_zp':stromgren_v}
-Rc1 = {'tag':'c1_R',
-      'type':'c1',
-      'color':ufloat(0.357, 0.0066),
-      'zp':ufloat(-0.0102, 0.0083),
-      'wave':stromgren_w,
-      'resp':stromgren_r,
-      'vega_zp':stromgren_v}
-
-
-flux2mag = Flux2mag('AI Phe', extra_data=[u320,u220w,u220n],   # DROP u220n FOR THIS RUN
-                    colors_data=[Gby,Gm1,Gc1,Rby,Rm1,Rc1])
-print("Magnitudes")
+# print("Magnitudes")
 for k in flux2mag.obs_mag.keys():
     o = flux2mag.obs_mag[k]
     w = flux2mag.w_pivot[k]
-    print("{:4s} {:6.0f} {:6.4f}".format(k,w,o))
-print("Color data")
+    # print("{:4s} {:6.0f} {:6.4f}".format(k,w,o))
+# print("Color data")
 for col in flux2mag.colors_data:
     s = col['tag']
     t = col['type']
     o = col['color']
-    print("{:8s} {:3s} {:6.4f}".format(s,t,o))
+    # print("{:8s} {:3s} {:6.4f}".format(s,t,o))
 
 
-import pickle
-l = pickle.load( open( "lratio_priors.pickle", "rb" ) )
-# Fix type in R1, R2 values
+l = pickle.load(open("lratio_priors.pickle", "rb"))
+# Fix typo in R1, R2 values
 l['R1']['Value'] = ufloat(1.197, 0.024)
 l['R2']['Value'] = ufloat(1.198, 0.024)
 l['u']['Value'] = ufloat(0.475, 0.017)
@@ -367,60 +367,60 @@ l['u320']['Value'] = ufloat(0.342, 0.042)
 l['u220n']['Value'] = ufloat(0.030, 0.066)
 l['u220w']['Value'] = ufloat(0.059, 0.090)
 # Fix broken Wavelength array for TESS entry
-#l['TESS']['Wavelength'] = np.array([10*float(s[:-1]) for s in l['TESS']['Wavelength']])
+# l['TESS']['Wavelength'] = np.array([10*float(s[:-1]) for s in l['TESS']['Wavelength']])
 # .. and update the value
 l['TESS']['Value'] = ufloat(1.319, 0.001)
 # Convert wavelength/response to interpolating functions
 lratios = {}
 for k in l.keys():
-    if  l[k]['Response'] is not None :
+    if l[k]['Response'] is not None:
 
         d = {}
         d['Value'] = l[k]['Value']
-        w = np.array(l[k]['Wavelength'],dtype='f8')
+        w = np.array(l[k]['Wavelength'], dtype='f8')
         R = l[k]['Response']
-        d['R'] = interp1d(w,R, bounds_error=False, fill_value=0)
+        d['R'] = interp1d(w, R, bounds_error=False, fill_value=0)
         if k == "TESS":
             d['photon'] = True
         else:
             d['photon'] = False
         lratios[k] = d
-        print(k,d['Value'],d['photon'])
+        print(k, d['Value'], d['photon'])
 # H-band flux ratio from Gallenne et al., 2019
 # Use a nominal error of 0.01
-k='H'
+k = 'H'
 d = {
-    'Value':ufloat(100/49.7,0.01),
-    'R':flux2mag.R[k],
+    'Value': ufloat(100 / 49.7, 0.01),
+    'R': flux2mag.R[k],
     'photon': True
-    }
+}
 lratios[k] = d
-print(k,d['Value'],d['photon'])
+print(k, d['Value'], d['photon'])
 
 
 def flux_ratio_priors(Vrat, TeffF, TeffK):
     # Vrat in the sense Flux_F/Flux_K
     data = {
-        'J':  {'cF':0.919,'mF': -0.408,'sigF': 0.015,'cK': 1.511,'mK': -0.605,'sigK': 0.018},
-        'H':  {'cF':1.118,'mF': -0.549,'sigF': 0.019,'cK': 1.918,'mK': -0.821,'sigK': 0.027},
-        'Ks': {'cF':1.181,'mF': -0.564,'sigF': 0.017,'cK': 2.033,'mK': -0.872,'sigK': 0.025},
-        'W1': {'cF':1.230,'mF': -0.568,'sigF': 0.027,'cK': 2.094,'mK': -0.865,'sigK': 0.035},
-        'W2': {'cF':1.234,'mF': -0.547,'sigF': 0.039,'cK': 2.101,'mK': -0.928,'sigK': 0.062},
-        'W3': {'cF':1.182,'mF': -0.554,'sigF': 0.021,'cK': 2.062,'mK': -0.907,'sigK': 0.036},
-        'W4': {'cF':1.225,'mF': -0.519,'sigF': 0.050,'cK': 2.095,'mK': -0.951,'sigK': 0.060}
+        'J': {'cF': 0.919, 'mF': -0.408, 'sigF': 0.015, 'cK': 1.511, 'mK': -0.605, 'sigK': 0.018},
+        'H': {'cF': 1.118, 'mF': -0.549, 'sigF': 0.019, 'cK': 1.918, 'mK': -0.821, 'sigK': 0.027},
+        'Ks': {'cF': 1.181, 'mF': -0.564, 'sigF': 0.017, 'cK': 2.033, 'mK': -0.872, 'sigK': 0.025},
+        'W1': {'cF': 1.230, 'mF': -0.568, 'sigF': 0.027, 'cK': 2.094, 'mK': -0.865, 'sigK': 0.035},
+        'W2': {'cF': 1.234, 'mF': -0.547, 'sigF': 0.039, 'cK': 2.101, 'mK': -0.928, 'sigK': 0.062},
+        'W3': {'cF': 1.182, 'mF': -0.554, 'sigF': 0.021, 'cK': 2.062, 'mK': -0.907, 'sigK': 0.036},
+        'W4': {'cF': 1.225, 'mF': -0.519, 'sigF': 0.050, 'cK': 2.095, 'mK': -0.951, 'sigK': 0.060}
     }
-    #Return a dictionary of ufloat priors on flux ratios
+    # Return a dictionary of ufloat priors on flux ratios
     d = {}
     for b in data.keys():
-        colF = data[b]['cF'] + data[b]['mF']*(TeffF-6400)/1000.0
-        colK = data[b]['cK'] + data[b]['mK']*(TeffK-5200)/1000.0
-        L = Vrat * 10**(0.4*(colK-colF))
-        e_L = np.hypot(data[b]['sigF'],data[b]['sigK'])
+        colF = data[b]['cF'] + data[b]['mF'] * (TeffF - 6400) / 1000.0
+        colK = data[b]['cK'] + data[b]['mK'] * (TeffK - 5200) / 1000.0
+        L = Vrat * 10 ** (0.4 * (colK - colF))
+        e_L = np.hypot(data[b]['sigF'], data[b]['sigK'])
         d[b] = ufloat(L, e_L)
     return d
 
-frp = flux_ratio_priors(1.05,6440,5220)
-frp
+
+frp = flux_ratio_priors(1.05, 6440, 5220)
 
 
 def lnprob(params,  # Model parameters and hyper-parameters
@@ -461,7 +461,7 @@ def lnprob(params,  # Model parameters and hyper-parameters
         if abs(c) > 1: return -np.inf
         distort1 = distort1 + c * legendre(n + 1)(x)
     # Make distortion = 0 at 5556A (where Vega z.p. flux is defined)
-    i_5556 = argmin(abs(wave - 5556))
+    i_5556 = np.argmin(abs(wave - 5556))
     distort1 = distort1 - distort1[i_5556]
     if min(distort1) < -1:
         return -np.inf
@@ -557,56 +557,52 @@ def lnprob(params,  # Model parameters and hyper-parameters
         f += " {:0.1e}" * Nc2
         f += " {:0.2f}"
         print(f.format(*(tuple(params) + (lnlike,))))
-    if isfinite(lnlike):
+    if np.isfinite(lnlike):
         if blobs:
-            return lnlike + lnprior, (*blob_data)
+            return (lnlike + lnprior, *blob_data)
         else:
             return lnlike + lnprior
     else:
         return -np.inf
 
 
-plx_Gallenne = ufloat(5.905,0.024)
-gaia_zp = ufloat(-0.031,0.011)
+plx_Gallenne = ufloat(5.905, 0.024)
+gaia_zp = ufloat(-0.031, 0.011)
 plx_DR2 = ufloat(5.8336, 0.0262) - gaia_zp
-print('Corrected DR2 parallax = {}'.format(plx_DR2))
-print('Difference DR2 - Gallenne = {}'.format(plx_DR2-plx_Gallenne))
-plx = (plx_Gallenne+plx_DR2)/2
-print('Mean parallax = {}'.format(plx))
-
+plx = (plx_Gallenne + plx_DR2) / 2
 
 
 Tref1 = 6200
 Tref2 = 5100
 M_H = -0.14
 aFe = 0.06
-spec1a = flint.ModelSpectrum.from_parameters(Tref1,4.0,binning=50,M_H=0.0, aFe=0.0,reload=True)
-spec1b = flint.ModelSpectrum.from_parameters(Tref1,4.0,binning=50,M_H=-0.5,aFe=0.2,reload=True)
-spec2a = flint.ModelSpectrum.from_parameters(Tref2,3.5,binning=50,M_H=0.0, aFe=0.0,reload=True)
-spec2b = flint.ModelSpectrum.from_parameters(Tref2,3.5,binning=50,M_H=-0.5,aFe=0.2,reload=True)
+spec1a = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=50, M_H=0.0, aFe=0.0, reload=True)
+spec1b = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=50, M_H=-0.5, aFe=0.2, reload=True)
+spec2a = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=50, M_H=0.0, aFe=0.0, reload=True)
+spec2b = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=50, M_H=-0.5, aFe=0.2, reload=True)
 
-spec1 = 0.72*spec1a + 0.28*spec1b
-spec2 = 0.72*spec2a + 0.28*spec2b
+spec1 = 0.72 * spec1a + 0.28 * spec1b
+spec2 = 0.72 * spec2a + 0.28 * spec2b
 
 # No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
-ebv_prior = ufloat(0.0,0.005)  # No detectable NaI lines so E(B-V) must be very close to 0
+ebv_prior = ufloat(0.0, 0.005)  # No detectable NaI lines so E(B-V) must be very close to 0
 redlaw = ReddeningLaw.from_extinction_model('mwavg')
 
 # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
 # R_Sun = 6.957e8 m
 # parsec = 3.085677581e16 m
-#R_1 = ufloat(1.835, 0.014)    # JK-K values
-#R_2 = ufloat(2.912, 0.014)    # JK-K values
-R_1 = ufloat(1.8050, 0.0046) # Prelimanary values from TESS analysis
-R_2 = ufloat(2.9343, 0.0034) # Prelimanary values from TESS analysis
-theta1 = 2*plx*R_1 * 6.957e8/3.085677581e19*180*3600*1000/pi
-theta2 = 2*plx*R_2 * 6.957e8/3.085677581e19*180*3600*1000/pi
-print('theta1 = {:0.4f} mas'.format(theta1))
-print('theta2 = {:0.4f} mas'.format(theta2))
+# R_1 = ufloat(1.835, 0.014)    # JK-K values
+# R_2 = ufloat(2.912, 0.014)    # JK-K values
+R_1 = ufloat(1.8050, 0.0046)  # Prelimanary values from TESS analysis
+R_2 = ufloat(2.9343, 0.0034)  # Prelimanary values from TESS analysis
+theta1 = 2 * plx * R_1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+theta2 = 2 * plx * R_2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+# print('theta1 = {:0.4f} mas'.format(theta1))
+# print('theta2 = {:0.4f} mas'.format(theta2))
 theta_cov = covariance_matrix([theta1, theta2])[0][1]
 theta_cor = correlation_matrix([theta1, theta2])[0][1]
-print('cov(theta_1,theta2) = {:0.2e}'.format(theta_cov))
-print('cor(theta_1,theta2) = {:0.2f}'.format(theta_cor))
+# print('cov(theta_1,theta2) = {:0.2e}'.format(theta_cov))
+# print('cor(theta_1,theta2) = {:0.2f}'.format(theta_cor))
 
 Teff1 = 6223
 Teff2 = 5135
@@ -620,111 +616,101 @@ sigma_c = 0.005
 Nc1 = 10
 Nc2 = 10
 params = [Teff1, Teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l, sigma_c]
-params = params + [0]*Nc1
-params = params + [0]*Nc2
+params = params + [0] * Nc1
+params = params + [0] * Nc2
 
-parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l','sigma_c']
-parname = parname + ["c_1,{}".format(j+1) for j in range(Nc1)]
-parname = parname + ["c_2,{}".format(j+1) for j in range(Nc2)]
+parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l', 'sigma_c']
+parname = parname + ["c_1,{}".format(j + 1) for j in range(Nc1)]
+parname = parname + ["c_2,{}".format(j + 1) for j in range(Nc2)]
 
-for pn,pv in zip(parname, params):
-    print('{} = {}'.format(pn,pv))
+for pn, pv in zip(parname, params):
+    print('{} = {}'.format(pn, pv))
 
-lnlike = lnprob(params,  flux2mag, lratios,
-           theta1, theta2, spec1, spec2,
-            ebv_prior, redlaw, Nc1,verbose=True)
-print('Initial log-likelihood = {:0.2f}'.format(lnlike))
+lnlike = lnprob(params, flux2mag, lratios,
+                theta1, theta2, spec1, spec2,
+                ebv_prior, redlaw, Nc1, verbose=True)
+# print('Initial log-likelihood = {:0.2f}'.format(lnlike))
 
 
-
-from scipy.optimize import minimize
 nll = lambda *args: -lnprob(*args)
 args = (flux2mag, lratios, theta1, theta2,
         spec1, spec2, ebv_prior, redlaw, Nc1)
 soln = minimize(nll, params, args=args, method='Nelder-Mead')
 
+# print('theta1 = {:0.4f} mas'.format(theta1))
+# print('theta2 = {:0.4f} mas'.format(theta2))
+# print()
+# for pn,pv in zip(parname, soln.x):
+#     print('{} = {}'.format(pn,pv))
+
+lnlike = lnprob(soln.x, flux2mag, lratios,
+                theta1, theta2, spec1, spec2,
+                ebv_prior, redlaw, Nc1, verbose=True)
+# print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
 
-print('theta1 = {:0.4f} mas'.format(theta1))
-print('theta2 = {:0.4f} mas'.format(theta2))
-print()
-for pn,pv in zip(parname, soln.x):
-    print('{} = {}'.format(pn,pv))
-
-lnlike = lnprob(soln.x,  flux2mag, lratios,
-           theta1, theta2, spec1, spec2,
-            ebv_prior, redlaw, Nc1,verbose=True)
-print('Final log-likelihood = {:0.2f}'.format(lnlike))
-
-
-
-steps = [25, 25,       # T_eff,1, T_eff,2
-        0.0005, 0.0007,  # theta_1 ,theta_2
-        0.001, 0.001, 0.001, 0.001, #  E(B-V), sigma_ext, sigma_l, sigma_c
-        *[0.01]*Nc1,*[0.01]*Nc2] # c_1,1 ..   c_2,1 ..
+steps = [25, 25,  # T_eff,1, T_eff,2
+         0.0005, 0.0007,  # theta_1 ,theta_2
+         0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
+         *[0.01] * Nc1, *[0.01] * Nc2]  # c_1,1 ..   c_2,1 ..
 
 nwalkers = 256
 ndim = len(soln.x)
 pos = np.zeros([nwalkers, ndim])
-for i,x in enumerate(soln.x):
-    pos[:,i] = x + steps[i]*np.random.randn(nwalkers)
+for i, x in enumerate(soln.x):
+    pos[:, i] = x + steps[i] * np.random.randn(nwalkers)
 
-nsteps = 5000
+nsteps = 1000
 with Pool() as pool:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=args,pool=pool)
-    sampler.run_mcmc(pos, nsteps, progress=True);
-
-
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=args, pool=pool)
+    sampler.run_mcmc(pos, nsteps, progress=True)
 
 af = sampler.acceptance_fraction
-print('\nMedian acceptance fraction =',np.median(af))
+# print('\nMedian acceptance fraction =',np.median(af))
 best_index = np.unravel_index(np.argmax(sampler.lnprobability),
-          (nwalkers, nsteps))
-best_lnlike =  np.max(sampler.lnprobability)
-print('\n Best log(likelihood) = ',best_lnlike,' in walker ',best_index[0],
-        ' at step ',best_index[1])
-best_pars = sampler.chain[best_index[0],best_index[1],:]
+                              (nwalkers, nsteps))
+best_lnlike = np.max(sampler.lnprobability)
+# print('\n Best log(likelihood) = ',best_lnlike,' in walker ',best_index[0],
+#        ' at step ',best_index[1])
+best_pars = sampler.chain[best_index[0], best_index[1], :]
 
-
-
-fig, axes = plt.subplots(4, figsize=(10, 7), sharex=True)
+fig, axes = plt.subplots(4, figsize=(10, 7), sharex='all')
 samples = sampler.get_chain()
 i0 = 0
-labels = parname[i0:i0+4]
+labels = parname[i0:i0 + 4]
 for i in range(4):
     ax = axes[i]
-    ax.plot(samples[:, :, i0+i], "k", alpha=0.3)
+    ax.plot(samples[:, :, i0 + i], "k", alpha=0.3)
     ax.set_xlim(0, len(samples))
     ax.set_ylabel(labels[i])
     ax.yaxis.set_label_coords(-0.1, 0.5)
 
-axes[-1].set_xlabel("Step number");
+axes[-1].set_xlabel("Step number")
+fig.show()
 
+flat_samples = sampler.get_chain(discard=4000, thin=8, flat=True)  # nsteps//2
+fig = corner.corner(flat_samples, labels=parname)
+fig.show()
 
-
-flat_samples = sampler.get_chain(discard=4000, thin=8, flat=True) #nsteps//2
-fig = corner.corner(flat_samples, labels=parname);
-
-
-for i,pn in enumerate(parname):
-    val = flat_samples[:,i].mean()
-    err = flat_samples[:,i].std()
-    ndp = 1-min(0,floor(log10(err)))
+for i, pn in enumerate(parname):
+    val = flat_samples[:, i].mean()
+    err = flat_samples[:, i].std()
+    ndp = 1 - min(0, np.floor(log10(err)))
     fmt = '{{:0.{:0.0f}f}}'.format(ndp)
     vstr = fmt.format(val)
     estr = fmt.format(err)
-    print('{} = {} +/- {}'.format(pn,vstr,estr))
+    # print('{} = {} +/- {}'.format(pn,vstr,estr))
 
-lnlike = lnprob(best_pars,  flux2mag, lratios,
-           theta1, theta2, spec1, spec2,
-            ebv_prior, redlaw, Nc1,verbose=True)
-print('Final log-likelihood = {:0.2f}'.format(lnlike))
+lnlike = lnprob(best_pars, flux2mag, lratios,
+                theta1, theta2, spec1, spec2,
+                ebv_prior, redlaw, Nc1, verbose=True)
+# print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
 wave, flux, f_1, f_2, d1, d2 = lnprob(
     best_pars, flux2mag, lratios,
     theta1, theta2, spec1, spec2,
     ebv_prior, redlaw, Nc1, return_flux=True)
-fig1, ax1 = plt.subplots(3, figsize=(10, 7), sharex=True)
+fig1, ax1 = plt.subplots(3, figsize=(10, 7), sharex='all')
 ax1[0].semilogx(wave, 1e12 * f_1, c='c')
 ax1[0].semilogx(wave, 1e12 * f_2, c='orange')
 ax1[0].set_xlim(1000, 300000)
@@ -745,49 +731,44 @@ for i in range(0, len(flat_samples), len(flat_samples) // 64):
     ax1[1].semilogx(wave, _d1, c='b', alpha=0.1)
     ax1[2].semilogx(wave, _d2, c='b', alpha=0.1)
 
-
-
+fig.show()
 
 VegaZeroPointErrorPercent = 0.5
-Fig14Data = Table.read('Bohlin2014_Fig14.csv',names=['w','err'])
-WDScaleErrorWavelengthAngstrom = Fig14Data['w']*10000
+Fig14Data = Table.read('Bohlin2014_Fig14.csv', names=['w', 'err'])
+WDScaleErrorWavelengthAngstrom = Fig14Data['w'] * 10000
 WDScaleErrorPercent = Fig14Data['err']
 TotalSystematicErrorPercent = VegaZeroPointErrorPercent + WDScaleErrorPercent
-plt.semilogx(WDScaleErrorWavelengthAngstrom,TotalSystematicErrorPercent,'bo')
-Interpolator = interp1d(WDScaleErrorWavelengthAngstrom,TotalSystematicErrorPercent,bounds_error=False,
-                    fill_value=50.0)
-WavelengthGrid = linspace(min(WDScaleErrorWavelengthAngstrom),max(WDScaleErrorWavelengthAngstrom),50001)
+plt.semilogx(WDScaleErrorWavelengthAngstrom, TotalSystematicErrorPercent, 'bo')
+Interpolator = interp1d(WDScaleErrorWavelengthAngstrom, TotalSystematicErrorPercent, bounds_error=False,
+                        fill_value=50.0)
+WavelengthGrid = np.linspace(min(WDScaleErrorWavelengthAngstrom), max(WDScaleErrorWavelengthAngstrom), 50001)
 TotSysErrPercentGrid = Interpolator(WavelengthGrid)
-plt.semilogx(WavelengthGrid,TotSysErrPercentGrid)
-xlabel('Wavelength [$\AA$]')
-ylabel('Flux scale error [%]');
-
-
-
+plt.semilogx(WavelengthGrid, TotSysErrPercentGrid)
+plt.xlabel(r'Wavelength [$\AA$]')
+plt.ylabel('Flux scale error [%]')
+plt.show()
 
 TotSysErrPercentGrid = Interpolator(wave)
-T_eff_1 = flat_samples[:,0].mean()
-rnderr_1 = flat_samples[:,0].std()
-fint_1 = simps(f_1,wave)
-fint_1p = simps(f_1*(1+TotSysErrPercentGrid/100),wave)
-syserr_1 = (fint_1p/fint_1-1)*T_eff_1/4    # /4 because L \propto Teff^4
-print('Systematic error in integrated flux = {:0.2%}%'.format((fint_1p/fint_1-1)))
-print('T_eff,1 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
-     format(T_eff_1, rnderr_1, syserr_1))
+T_eff_1 = flat_samples[:, 0].mean()
+rnderr_1 = flat_samples[:, 0].std()
+fint_1 = simps(f_1, wave)
+fint_1p = simps(f_1 * (1 + TotSysErrPercentGrid / 100), wave)
+syserr_1 = (fint_1p / fint_1 - 1) * T_eff_1 / 4  # /4 because L \propto Teff^4
+# print('Systematic error in integrated flux = {:0.2%}%'.format((fint_1p/fint_1-1)))
+# print('T_eff,1 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
+#     format(T_eff_1, rnderr_1, syserr_1))
 
-T_eff_2 = flat_samples[:,1].mean()
-rnderr_2 = flat_samples[:,1].std()
-fint_2 = simps(f_2,wave)
-fint_2p = simps(f_2*(1+TotSysErrPercentGrid/100),wave)
-syserr_2 = (fint_2p/fint_2-1)*T_eff_2/4
-print('Systematic error in integrated flux = {:0.2%}%'.format((fint_2p/fint_2-1)))
-print('T_eff,2 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
-          format(T_eff_2, rnderr_2, syserr_2))
-
+T_eff_2 = flat_samples[:, 1].mean()
+rnderr_2 = flat_samples[:, 1].std()
+fint_2 = simps(f_2, wave)
+fint_2p = simps(f_2 * (1 + TotSysErrPercentGrid / 100), wave)
+syserr_2 = (fint_2p / fint_2 - 1) * T_eff_2 / 4
+# print('Systematic error in integrated flux = {:0.2%}%'.format((fint_2p/fint_2-1)))
+# print('T_eff,2 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
+#          format(T_eff_2, rnderr_2, syserr_2))
 
 
 tag = "C"
-pfile = "{}_{:0.0f}_{:0.0f}+{:+0.1f}_{}_coeffs.p".format(tag,Tref1,Tref2,M_H,Nc1)
+pfile = "{}_{:0.0f}_{:0.0f}+{:+0.1f}_{}_coeffs.p".format(tag, Tref1, Tref2, M_H, Nc1)
 with open(pfile, 'wb') as f:
     pickle.dump(sampler, f)
-
