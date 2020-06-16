@@ -100,8 +100,10 @@ if include_ebv_prior:
 redlaw = ReddeningLaw.from_extinction_model('mwavg')
 
 # DATA INPUT - stellar radius
-R_1 = ufloat(1.8050, 0.0022)  # Final values from TESS light curve - Maxted et al. (2020)
-R_2 = ufloat(2.9332, 0.0023)  # Final values from TESS light curve - Maxted et al. (2020)
+R_1 = ufloat(1.8036, 0.0022)  # Rosseland radius derived from Maxted radius
+R_2 = ufloat(2.9303, 0.0023)  # Rosseland radius derived from Maxted radius
+# R_1 = ufloat(1.8050, 0.0022)  # Final values from TESS light curve - Maxted et al. (2020)
+# R_2 = ufloat(2.9332, 0.0023)  # Final values from TESS light curve - Maxted et al. (2020)
 # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
 # R_Sun = 6.957e8 m,  parsec = 3.085677581e16 m
 theta1 = 2 * plx * R_1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
