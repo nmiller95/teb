@@ -9,28 +9,43 @@ from astroquery.simbad import Simbad
 
 
 class Flux2mag:
+    """
+    Flux2mag methods:
+        __init__: Accesses and consolidates magnitude and photometric colors of a star.
+        __call__: Generates synthetic magnitudes and colors from integrating a reference spectrum of Vega.
+    """
 
-    # extra_data is a list of dictionaries, each with the following data ...
-    #  'tag' - string, photometric band/system name/label
-    #  'mag' - ufloat, observed magnitude with standard error
-    #  'zp'  - ufloat, zero-point and standard error
-    #  'wave' - array, wavelengths for response function, ** in angstrom **
-    #  'resp'  - array, response function
-    # Example,
-    # AKARI/IRC mid-IR all-sky Survey S9W-band flux measurement of AI Phe
-    # S09 = 9.796e-02 +/- 2.70e-02 J
-    # Error in flux scale at S9W is given as "0.070 rms".
-    # Convert flux to AB magnitude
-    # >>> from uncertainties.umath import log10
-    # >>> S09 = {'tag':'S09',
-    # ...   'mag':-2.5*log10(ufloat(9.796e-02, 2.70e-02)/3631),
-    # ...   'zp':ufloat(-48.60, 2.5*log10(1.070)),
-    # ...   'wave':np.array([5.78, 6.97, 8.63, 9.98, 11.38, 11.80, 12.41])*1e4,
-    # ...   'resp':np.array([0.00, 0.39, 0.86, 1.00, 0.71, 0.07, 0.00]) }
-    # >>> flux2mag = Flux2mag('AI Phe', extra_data=[S09])
-    def __init__(self, name, extra_data=[], colors_data=[]):  # STROMGREN_COLORS
+    def __init__(self, name, extra_data=None, colors_data=None):  # STROMGREN_COLORS
+        """
+        Reads in bandpass data from package files. Calculates a standardised response function and pivot wavelength of
+        each bandpass. Retrieves standard photometric data from SIMBAD and processes any extra data supplied.
 
+        :param name: Name of star, as understood by SIMBAD
+        :type name: basestring
+        :param extra_data: List of dictionaries containing informatino about non-standard magnitudes.
+            Each dictionary must contain:
+                'tag' - string, photometric band/system name/label
+                'mag' - ufloat, observed AB magnitude with standard error
+                'zp'  - ufloat, zero-point and standard error
+                'wave' - array, wavelengths for response function, ** in angstrom **
+                'resp'  - array, response function
+        :type extra_data: list
+        :param colors_data: List of dictionaries containing information about photometric colors.
+            Each dictionary must contain:
+                'tag' - string, photometric color name/label (must be unique), e.g. '(b-y)_1'
+                'type' - string, type of color, e.g. 'by', 'm1', 'c1'
+                'color' - ufloat, observed color with standard error
+                'zp' - ufloa, zero-point and standard error
+                'wave' - array, wavelengths for response function, ** in angstrom **
+                'resp' - array, response function
+                'vega_zp' - dictionary, contains zero-points of the component passbands, e.g. u,b,v,y, from Vega (?)
+        :type colors_data: list
+        """
+
+        if extra_data is None:
+            extra_data = []
         self.name = name
+
         # Zero-point data as a dictionary
         # Error in "zero-point" for GALEX FUV & NUV are RMS from Camarota and Holberg, 2014
         # N.B. For WISE, these are offsets from vega to AB magnitudes from Jarret et al.
@@ -61,13 +76,14 @@ class Flux2mag:
         # Response functions as a dictionary of interpolating functions
         R = dict()
 
-        # Pivot wavelength using equation (A16) from Bessell & Murphy
+        # Pivot wavelength using equation (A16) from Bessell & Murphy (2011)
         def wp(w, r):
             return np.sqrt(simps(r * w, w) / simps(r / w, w))
 
         w_pivot = dict()
 
-        # Johnson bands from Bessell, 2012 PASP, 124:140-157
+        # -------------- READ IN BANDS, CALCULATE RESPONSE FUNCTIONS AND PIVOT WAVELENGTHS -------------- #
+        # Johnson - from Bessell, 2012 PASP, 124:140-157
         T = Table.read('Response/J_PASP_124_140_table1.dat.fits')
         for b in ['U', 'B', 'V', 'R', 'I']:
             wtmp = T['lam.{}'.format(b)]
@@ -77,13 +93,13 @@ class Flux2mag:
             R[b] = interp1d(wtmp, rtmp, bounds_error=False, fill_value=0)
             w_pivot[b] = wp(wtmp, rtmp)
 
-        # GALEX
+        # GALEX - source needed
         for b in ['FUV', 'NUV']:
             T = Table.read('Response/EA-{}_im.tbl'.format(b.lower()), format='ascii', names=['w', 'A'])
             R[b] = interp1d(T['w'], T['A'], bounds_error=False, fill_value=0)
             w_pivot[b] = wp(T['w'], T['A'])
 
-        # Gaia revised band passes
+        # Gaia DR2 - revised band passes
         names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
         T = Table.read('Response/GaiaDR2_RevisedPassbands.dat',
                        format='ascii', names=names)
@@ -93,13 +109,13 @@ class Flux2mag:
             R[b] = interp1d(w[i], T[b][i], bounds_error=False, fill_value=0)
             w_pivot[b] = wp(w[i], T[b][i])
 
-        # 2MASS
+        # 2MASS - source needed
         for k, b in enumerate(['J', 'H', 'Ks']):
             T = Table.read('Response/sec6_4a.tbl{:1.0f}.dat'.format(k + 1), format='ascii', names=['w', 'T'])
             R[b] = interp1d(T['w'] * 1e4, T['T'], bounds_error=False, fill_value=0)
             w_pivot[b] = wp(T['w'] * 1e4, T['T'])
 
-        # ALLWISE QE-based RSRs from
+        # ALLWISE - QE-based RSRs from
         # http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
         for b in ('W1', 'W2', 'W3', 'W4'):
             T = Table.read("Response/RSR-{}.txt".format(b),
@@ -121,9 +137,9 @@ class Flux2mag:
         self.extra_data = extra_data
         self.colors_data = colors_data
 
+        # ---------- RETRIEVE STANDARD PHOTOMETRY WITH SIMBAD + VIZIER QUERIES ---------- #
         # Create catalogue query functions for Gaia DR2, 2MASS, GALEX and WISE
         Vizier_r = Vizier(columns=["*", "+_r"])
-        # THIS_IS_NEW -
         # Use WISE All Sky values instead of ALLWISE for consistency with flux ratio
         # calibration and because these are more reliable at the bright end for W1 and W2
         v = Vizier_r.query_object(name, catalog=['I/345/gaia2', 'II/311/wise', 'II/335/galex_ais'])
@@ -135,7 +151,7 @@ class Flux2mag:
         obs_mag['G'] = 0.0505 + 0.9966 * ufloat(v[0][0]['Gmag'], v[0][0]['e_Gmag'])
         obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag']) - 0.0026
         obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag']) + 0.0008
-        for b in ['J', 'H', 'K', 'W1', 'W2', 'W3', 'W4']:  # THIS_IS_NEW include wise W4
+        for b in ['J', 'H', 'K', 'W1', 'W2', 'W3', 'W4']:
             if b == 'J' or b == 'H' or b == 'K':
                 sb_tab = sb.query_object(name)
                 if b == 'K':
@@ -145,7 +161,7 @@ class Flux2mag:
             else:
                 obs_mag[b] = ufloat(v[1][0]['{}mag'.format(b)], v[1][0]['e_{}mag'.format(b)])
         obs_mag['FUV'] = ufloat(v[2][0]['FUVmag'], v[2][0]['e_FUVmag'])
-        # obs_mag['NUV'] = ufloat(v[2][0]['NUVmag'], v[2][0]['e_NUVmag'])
+        obs_mag['NUV'] = ufloat(v[2][0]['NUVmag'], v[2][0]['e_NUVmag'])
 
         # Add magnitudes from extra_data
         for x in extra_data:
@@ -192,7 +208,7 @@ class Flux2mag:
             zp = self.zp[b]
             R = self.R[b]
             f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                    simps(R(wave) * 2.998e10 / (wave), wave))
+                    simps(R(wave) * 2.998e10 / wave, wave))
             syn_mag[b] = -2.5 * np.log10(f_nu) + 20 - 48.60 - self.zp[b]
         self.syn_mag = syn_mag
 
@@ -241,4 +257,3 @@ class Flux2mag:
             chisq += z.n ** 2 * wt
             lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
         return chisq, lnlike_m, lnlike_c
-
