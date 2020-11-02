@@ -15,7 +15,7 @@ class Flux2mag:
         __call__: Generates synthetic magnitudes and colors from integrating a reference spectrum of Vega.
     """
 
-    def __init__(self, name, extra_data=None, colors_data=None):  # STROMGREN_COLORS
+    def __init__(self, name, extra_data=None, colors_data=None):
         """
         Reads in bandpass data from package files. Calculates a standardised response function and pivot wavelength of
         each bandpass. Retrieves standard photometric data from SIMBAD and processes any extra data supplied.
@@ -42,15 +42,12 @@ class Flux2mag:
         :type colors_data: list
         """
 
-        # if extra_data is None:
-        #     extra_data = []
         self.name = name
 
         # Zero-point data as a dictionary
         # Error in "zero-point" for GALEX FUV & NUV are RMS from Camarota and Holberg, 2014
         # N.B. For WISE, these are offsets from vega to AB magnitudes from Jarret et al.
         # "This Vega basis has an overall systematic uncertainty of ∼1.45%." (0.016 mag)
-
         self.zp = {
             'FUV': ufloat(-48.60, 0.134),
             'NUV': ufloat(-48.60, 0.154),
@@ -66,7 +63,6 @@ class Flux2mag:
             'W4': ufloat(6.620, 0.0016)
         }
 
-        #
         # Flux integrals for reference Vega spectrum
         self.f_vega = {
             'J': 6.272182574976323e-11,
@@ -278,8 +274,3 @@ class Flux2mag:
                 chisq += z.n ** 2 * wt
                 lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
         return chisq, lnlike_m, lnlike_c
-
-
-f = Flux2mag('TYC 6511-1799-1')
-print(f.obs_mag)
-print(f.obs_col)
