@@ -162,8 +162,11 @@ class Flux2mag:
                     obs_mag[b] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
             else:
                 obs_mag[b] = ufloat(v[1][0]['{}mag'.format(b)], v[1][0]['e_{}mag'.format(b)])
-        obs_mag['FUV'] = ufloat(v[2][0]['FUVmag'], v[2][0]['e_FUVmag'])
-        obs_mag['NUV'] = ufloat(v[2][0]['NUVmag'], v[2][0]['e_NUVmag'])
+        try:
+            obs_mag['FUV'] = ufloat(v[2][0]['FUVmag'], v[2][0]['e_FUVmag'])
+            obs_mag['NUV'] = ufloat(v[2][0]['NUVmag'], v[2][0]['e_NUVmag'])
+        except IndexError as error:
+            print(error, ': No GALEX photometry found')
 
         # Add magnitudes from extra_data
         if extra_data:
@@ -275,3 +278,8 @@ class Flux2mag:
                 chisq += z.n ** 2 * wt
                 lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
         return chisq, lnlike_m, lnlike_c
+
+
+f = Flux2mag('TYC 6511-1799-1')
+print(f.obs_mag)
+print(f.obs_col)
