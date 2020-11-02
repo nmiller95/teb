@@ -42,8 +42,8 @@ class Flux2mag:
         :type colors_data: list
         """
 
-        if extra_data is None:
-            extra_data = []
+        # if extra_data is None:
+        #     extra_data = []
         self.name = name
 
         # Zero-point data as a dictionary
@@ -77,17 +77,17 @@ class Flux2mag:
         R = dict()
 
         # Pivot wavelength using equation (A16) from Bessell & Murphy (2011)
-        def wp(w, r):
-            return np.sqrt(simps(r * w, w) / simps(r / w, w))
+        def wp(wavelength, response):
+            return np.sqrt(simps(response * wavelength, wavelength) / simps(response / wavelength, wavelength))
 
         w_pivot = dict()
 
         # -------------- READ IN BANDS, CALCULATE RESPONSE FUNCTIONS AND PIVOT WAVELENGTHS -------------- #
         # Johnson - from Bessell, 2012 PASP, 124:140-157
-        T = Table.read('Response/J_PASP_124_140_table1.dat.fits')
+        t = Table.read('Response/J_PASP_124_140_table1.dat.fits')
         for b in ['U', 'B', 'V', 'R', 'I']:
-            wtmp = T['lam.{}'.format(b)]
-            rtmp = T[b]
+            wtmp = t['lam.{}'.format(b)]
+            rtmp = t[b]
             rtmp = rtmp[wtmp > 0]
             wtmp = wtmp[wtmp > 0]
             R[b] = interp1d(wtmp, rtmp, bounds_error=False, fill_value=0)
@@ -95,50 +95,52 @@ class Flux2mag:
 
         # GALEX - source needed
         for b in ['FUV', 'NUV']:
-            T = Table.read('Response/EA-{}_im.tbl'.format(b.lower()), format='ascii', names=['w', 'A'])
-            R[b] = interp1d(T['w'], T['A'], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(T['w'], T['A'])
+            t = Table.read('Response/EA-{}_im.tbl'.format(b.lower()), format='ascii', names=['w', 'A'])
+            R[b] = interp1d(t['w'], t['A'], bounds_error=False, fill_value=0)
+            w_pivot[b] = wp(t['w'], t['A'])
 
         # Gaia DR2 - revised band passes
         names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
-        T = Table.read('Response/GaiaDR2_RevisedPassbands.dat',
+        t = Table.read('Response/GaiaDR2_RevisedPassbands.dat',
                        format='ascii', names=names)
-        w = T['wave'] * 10
+        w = t['wave'] * 10
         for b in ['G', 'BP', 'RP']:
-            i = (T[b] < 99).nonzero()
-            R[b] = interp1d(w[i], T[b][i], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(w[i], T[b][i])
+            i = (t[b] < 99).nonzero()
+            R[b] = interp1d(w[i], t[b][i], bounds_error=False, fill_value=0)
+            w_pivot[b] = wp(w[i], t[b][i])
 
         # 2MASS - source needed
         for k, b in enumerate(['J', 'H', 'Ks']):
-            T = Table.read('Response/sec6_4a.tbl{:1.0f}.dat'.format(k + 1), format='ascii', names=['w', 'T'])
-            R[b] = interp1d(T['w'] * 1e4, T['T'], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(T['w'] * 1e4, T['T'])
+            t = Table.read('Response/sec6_4a.tbl{:1.0f}.dat'.format(k + 1), format='ascii', names=['w', 'T'])
+            R[b] = interp1d(t['w'] * 1e4, t['T'], bounds_error=False, fill_value=0)
+            w_pivot[b] = wp(t['w'] * 1e4, t['T'])
 
         # ALLWISE - QE-based RSRs from
         # http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
         for b in ('W1', 'W2', 'W3', 'W4'):
-            T = Table.read("Response/RSR-{}.txt".format(b),
+            t = Table.read("Response/RSR-{}.txt".format(b),
                            format='ascii', names=['w', 'T', 'e'])
-            R[b] = interp1d(T['w'] * 1e4, T['T'], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(T['w'] * 1e4, T['T'])
+            R[b] = interp1d(t['w'] * 1e4, t['T'], bounds_error=False, fill_value=0)
+            w_pivot[b] = wp(t['w'] * 1e4, t['T'])
 
         # Process response functions in extra_data
-        for x in extra_data:
-            b = x['tag']
-            w = x['wave']
-            r = x['resp']
-            R[b] = interp1d(w, r, bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(w, r)
-            self.zp[b] = x['zp']
+        if extra_data:
+            for x in extra_data:
+                b = x['tag']
+                w = x['wave']
+                r = x['resp']
+                R[b] = interp1d(w, r, bounds_error=False, fill_value=0)
+                w_pivot[b] = wp(w, r)
+                self.zp[b] = x['zp']
 
         self.R = R
         self.w_pivot = w_pivot
         self.extra_data = extra_data
-        self.colors_data = colors_data
+        if colors_data:
+            self.colors_data = colors_data
 
-        # ---------- RETRIEVE STANDARD PHOTOMETRY WITH SIMBAD + VIZIER QUERIES ---------- #
-        # Create catalogue query functions for Gaia DR2, 2MASS, GALEX and WISE
+        # -------------- RETRIEVE STANDARD PHOTOMETRY WITH SIMBAD + VIZIER QUERIES -------------- #
+        # Catalogue query functions for Gaia DR2, 2MASS, GALEX and WISE
         Vizier_r = Vizier(columns=["*", "+_r"])
         # Use WISE All Sky values instead of ALLWISE for consistency with flux ratio
         # calibration and because these are more reliable at the bright end for W1 and W2
@@ -164,29 +166,41 @@ class Flux2mag:
         obs_mag['NUV'] = ufloat(v[2][0]['NUVmag'], v[2][0]['e_NUVmag'])
 
         # Add magnitudes from extra_data
-        for x in extra_data:
-            obs_mag[x['tag']] = x['mag']
+        if extra_data:
+            for x in extra_data:
+                obs_mag[x['tag']] = x['mag']
 
         self.obs_mag = obs_mag
 
-        # Add colors from colors_data # STROMGREN_COLORS
-        obs_col = dict()
-        for x in colors_data:
-            obs_col[x['tag']] = x['color']
-        self.obs_col = obs_col
+        # Add colors from colors_data
+        if colors_data:
+            obs_col = dict()
+            for x in colors_data:
+                obs_col[x['tag']] = x['color']
+            self.obs_col = obs_col
 
-    def __call__(self, wave, f_lambda, sig_ext=0, sig_col=0):  # SIGMA_COL
-        # Integrate f_lambda over passbands and return chi-square of fit to observed magnitudes
-        # f_lambda must be call-able with argument lambda = wavelength in Angstrom
+    def __call__(self, wave, f_lambda, sig_ext=0, sig_col=0):
+        """
+        Integrates flux over the defined passbands and returns chi-square of fit to observed magnitudes.
+
+        :param wave: Wavelength range over which the flux is defined, in Angstrom
+        :param f_lambda: Must be call-able with argument lambda = wavelength in Angstrom
+        :param sig_ext: Amount of external noise to the magnitudes
+        :param sig_col: Amount of external noise to the colors
+        :return: chi-square of the fit to observed magnitudes, and log likelihoods
+        """
+
         syn_mag = dict()
-        R = self.R['FUV']
-        f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
-        syn_mag['FUV'] = -2.5 * np.log10(f_nu) + self.zp['FUV']
+
+        for b in ['FUV', 'NUV']:
+            R = self.R[b]
+            f_nu = (simps(f_lambda * R(wave) * wave, wave) /
+                    simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
+            syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
 
         P_A = 0.7278
         hc9 = 1.986445824e-16  # 10^9 hc
-        # /1000 is conversion from erg/s/cm^2/A to W/m^2/nm
+        # /10000 is conversion from erg/s/cm^2/A to W/m^2/nm
         for b in ['G', 'BP', 'RP']:
             photon_flux = P_A * simps(self.R[b](wave) * wave * f_lambda / 10000, wave) / hc9
             syn_mag[b] = -2.5 * np.log10(photon_flux) + self.zp[b]
@@ -198,62 +212,62 @@ class Flux2mag:
             R = self.R[b]
             syn_mag[b] = -2.5 * np.log10(simps(R(wave) * f_lambda * wave, wave) / v) + 20 + zp
 
-        # For ALLWISE, calculate AB magnitudes and then convert Vega magnitudes using correctiond from
+        # For ALLWISE, calculate AB magnitudes and then convert Vega magnitudes using corrections from
         # Jarrett_2011_ApJ_735_112,
         # "Conversion to the monochromatic AB system entails an additional 2.699, 3.339, 5.174, and 6.620 added
         #  to the Vega magnitudes for W1, W2, W3, and W4, respectively"
-        # "+20" to account for wave in A not um
 
-        for b in ('W1', 'W2', 'W3', 'W4'):  # THIS_IS_NEW Include W4
-            zp = self.zp[b]
+        for b in ('W1', 'W2', 'W3', 'W4'):
             R = self.R[b]
             f_nu = (simps(f_lambda * R(wave) * wave, wave) /
                     simps(R(wave) * 2.998e10 / wave, wave))
-            syn_mag[b] = -2.5 * np.log10(f_nu) + 20 - 48.60 - self.zp[b]
+            syn_mag[b] = -2.5 * np.log10(f_nu) + 20 - 48.60 - self.zp[b]  # "+20" to account for wave in A not um
         self.syn_mag = syn_mag
 
         # Process extra_data
-        for x in self.extra_data:
-            b = x['tag']
-            R = self.R[b]
-            f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                    simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
-            syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
+        if self.extra_data:
+            for x in self.extra_data:
+                b = x['tag']
+                R = self.R[b]
+                f_nu = (simps(f_lambda * R(wave) * wave, wave) /
+                        simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
+                syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
 
-            # Process colors_data
-        syn_col = {}
-        for x in self.colors_data:
-            b = x['tag']
-            mag = {}
-            f_interp = interp1d(wave, f_lambda)
-            for m in ('u', 'v', 'b', 'y'):
-                mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]), x['wave'][m]) / x['vega_zp'][m])
-            if x['type'] == 'by':
-                by_o = x['color']
-                syn_col[b] = mag['b'] - mag['y'] + x['zp'] + 0.003
-            if x['type'] == 'm1':
-                m1_o = x['color']
-                by_c = mag['b'] - mag['y']
-                vb_c = mag['v'] - mag['b']
-                syn_col[b] = vb_c - by_c + x['zp'] + 0.157
-            if x['type'] == 'c1':
-                c1_o = x['color']
-                uv_c = mag['u'] - mag['v']
-                vb_c = mag['v'] - mag['b']
-                syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
-        self.syn_col = syn_col
+        # Process colors_data
+        if self.colors_data:
+            syn_col = {}
+            for x in self.colors_data:
+                b = x['tag']
+                mag = {}
+                f_interp = interp1d(wave, f_lambda)
+                for m in ('u', 'v', 'b', 'y'):
+                    mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]), x['wave'][m]) / x['vega_zp'][m])
+                if x['type'] == 'by':
+                    # by_o = x['color']
+                    syn_col[b] = mag['b'] - mag['y'] + x['zp'] + 0.003
+                if x['type'] == 'm1':
+                    # m1_o = x['color']
+                    by_c = mag['b'] - mag['y']
+                    vb_c = mag['v'] - mag['b']
+                    syn_col[b] = vb_c - by_c + x['zp'] + 0.157
+                if x['type'] == 'c1':
+                    # c1_o = x['color']
+                    uv_c = mag['u'] - mag['v']
+                    vb_c = mag['v'] - mag['b']
+                    syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
+            self.syn_col = syn_col
 
-        lnlike_m = 0
+        lnlike_m, lnlike_c = 0, 0
         chisq = 0
-        for k, v in zip(syn_mag.keys(), syn_mag.values()):
-            z = self.obs_mag[k] - syn_mag[k]
+        for k, v in zip(self.syn_mag.keys(), self.syn_mag.values()):
+            z = self.obs_mag[k] - self.syn_mag[k]
             wt = 1 / (z.s ** 2 + sig_ext ** 2)
             chisq += z.n ** 2 * wt
             lnlike_m += -0.5 * (z.n ** 2 * wt - np.log(wt))
-        lnlike_c = 0
-        for k, v in zip(syn_col.keys(), syn_col.values()):
-            z = self.obs_col[k] - syn_col[k]
-            wt = 1 / (z.s ** 2 + sig_col ** 2)  # SIGMA_COL
-            chisq += z.n ** 2 * wt
-            lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
+        if self.colors_data:
+            for k, v in zip(self.syn_col.keys(), self.syn_col.values()):
+                z = self.obs_col[k] - self.syn_col[k]
+                wt = 1 / (z.s ** 2 + sig_col ** 2)
+                chisq += z.n ** 2 * wt
+                lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
         return chisq, lnlike_m, lnlike_c
