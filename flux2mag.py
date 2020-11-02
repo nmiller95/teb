@@ -178,6 +178,8 @@ class Flux2mag:
             for x in colors_data:
                 obs_col[x['tag']] = x['color']
             self.obs_col = obs_col
+        else:
+            self.obs_col = None
 
     def __call__(self, wave, f_lambda, sig_ext=0, sig_col=0):
         """
@@ -256,6 +258,8 @@ class Flux2mag:
                     vb_c = mag['v'] - mag['b']
                     syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
             self.syn_col = syn_col
+        else:
+            self.syn_col = None
 
         lnlike_m, lnlike_c = 0, 0
         chisq = 0
