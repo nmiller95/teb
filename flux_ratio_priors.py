@@ -74,7 +74,7 @@ def fitcol(band, Tbl, Tref=5777, method='quad'):
         print('incorrect')
 
 
-def calculate_flux_ratio_priors(Vrat, Teff1, Teff2, table1, table2, Tref1, Tref2, method='quad'):
+def frp_coeffs(Tref1, Tref2, table1, table2, method='quad'):
     data = {}
     bands = ['Jmag', 'Hmag', 'Kmag', 'W1mag', 'W2mag', 'W3mag', 'W4mag']
     tags = ['J', 'H', 'Ks', 'W1', 'W2', 'W3', 'W4']
@@ -84,31 +84,39 @@ def calculate_flux_ratio_priors(Vrat, Teff1, Teff2, table1, table2, Tref1, Tref2
             c1, m1, r1 = fitcol(band, table1, Tref1, method='lin')
             c2, m2, r2 = fitcol(band, table2, Tref2, method='lin')
             data[tag] = {'c1': c1, 'm1': m1, 'r1': r1, 'c2': c2, 'm2': m2, 'r2': r2}
-        # Return a dictionary of ufloat priors on flux ratios
-        d = {}
-        for b in data.keys():
-            col1 = data[b]['c1'] + data[b]['m1'] * (Teff1 - Tref1) / 1000.0
-            col2 = data[b]['c2'] + data[b]['m2'] * (Teff2 - Tref2) / 1000.0
-            L = Vrat * 10 ** (0.4 * (col2 - col1))
-            e_L = np.hypot(data[b]['r1'], data[b]['r2'])
-            d[b] = ufloat(L, e_L)
-        return d
-
     elif method == 'quad':
         for band, tag in zip(bands, tags):
             p01, p11, p21, r1 = fitcol(band, table1, Tref1, method='quad')
             p02, p12, p22, r2 = fitcol(band, table2, Tref2, method='quad')
             data[tag] = {'p01': p01, 'p11': p11, 'p21': p21, 'r1': r2,
                          'p02': p02, 'p12': p12, 'p22': p22, 'r2': r2}
+    else:
+        print('method must be lin or quad')
+    return data
+
+
+def flux_ratio_priors(Vrat, Teff1, Teff2, Tref1, Tref2, coeffs, method='quad'):
+    if method == 'lin':
         # Return a dictionary of ufloat priors on flux ratios
         d = {}
-        for b in data.keys():
-            col1 = data[b]['p01'] + data[b]['p11'] * (Teff1 - Tref1) / 1000.0
-            + data[b]['p21'] * ((Teff1 - Tref1) / 1000.0) ** 2
-            col2 = data[b]['p02'] + data[b]['p12'] * (Teff2 - Tref2) / 1000.0
-            + data[b]['p22'] * ((Teff2 - Tref2) / 1000.0) ** 2
+        for b in coeffs.keys():
+            col1 = coeffs[b]['c1'] + coeffs[b]['m1'] * (Teff1 - Tref1) / 1000.0
+            col2 = coeffs[b]['c2'] + coeffs[b]['m2'] * (Teff2 - Tref2) / 1000.0
             L = Vrat * 10 ** (0.4 * (col2 - col1))
-            e_L = np.hypot(data[b]['r1'], data[b]['r2'])
+            e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
+            d[b] = ufloat(L, e_L)
+        return d
+
+    elif method == 'quad':
+        # Return a dictionary of ufloat priors on flux ratios
+        d = {}
+        for b in coeffs.keys():
+            col1 = coeffs[b]['p01'] + coeffs[b]['p11'] * (Teff1 - Tref1) / 1000.0
+            + coeffs[b]['p21'] * ((Teff1 - Tref1) / 1000.0) ** 2
+            col2 = coeffs[b]['p02'] + coeffs[b]['p12'] * (Teff2 - Tref2) / 1000.0
+            + coeffs[b]['p22'] * ((Teff2 - Tref2) / 1000.0) ** 2
+            L = Vrat * 10 ** (0.4 * (col2 - col1))
+            e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
             d[b] = ufloat(L, e_L)
         return d
     else:
