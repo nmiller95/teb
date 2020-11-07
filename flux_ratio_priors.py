@@ -40,6 +40,17 @@ def mad(p, x, y):
 
 
 def fitcol(band, Tbl, Tref=5777, method='quad'):
+    """
+    Fits sample of GCS-WISE stars with either polynomial or linear relation
+
+    :param band: Which photometric band to fit over, e.g. 'J'
+    :param Tbl: Table containing GCS+WISE data
+    :param Tref: Float, reference temperature in K. Default is nominal solar Teff.
+    :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
+    :type Tbl: astropy.table.Table
+
+    :returns: Coefficients and rms of the fit
+    """
     # dictionary of R values from Yuan et al., MNRAS 430, 2188–2199 (2013)
     # extrapolated/guessed for w3 and w4 - negligible for E(B-V)<0.05 anyway
     R = {'Jmag': 0.72, 'Hmag': 0.46, 'Kmag': 0.306,
@@ -75,6 +86,19 @@ def fitcol(band, Tbl, Tref=5777, method='quad'):
 
 
 def frp_coeffs(Tref1, Tref2, table1, table2, method='quad'):
+    """
+    Calculates coefficients for flux ratio prior calculation.
+
+    :param Tref1: Reference temperature in K for the primary star
+    :param Tref2: Reference temperature in K for the secondary star
+    :param table1: Table containing GCS-WISE data in Teff range of primary star
+    :param table2: Table containing GCS-WISE data in Teff range of secondary star
+    :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
+    :type table1: astropy.table.Table
+    :type table2: astropy.table.Table
+
+    :return: Dictionary of coefficients to use in generation of flux ratio priors
+    """
     data = {}
     bands = ['Jmag', 'Hmag', 'Kmag', 'W1mag', 'W2mag', 'W3mag', 'W4mag']
     tags = ['J', 'H', 'Ks', 'W1', 'W2', 'W3', 'W4']
@@ -96,6 +120,19 @@ def frp_coeffs(Tref1, Tref2, table1, table2, method='quad'):
 
 
 def flux_ratio_priors(Vrat, Teff1, Teff2, Tref1, Tref2, coeffs, method='quad'):
+    """
+    Calculates a predicted flux ratio for your star in each of the 2MASS and WISE bands
+
+    :param Vrat: Flux ratio of your star in the V band
+    :param Teff1: Temperature of primary star in K
+    :param Teff2: Temperature of secondary star in K
+    :param Tref1: Reference temperature used in generation of coefficients for primary
+    :param Tref2: Reference temperature used in generation of coefficients for secondary
+    :param coeffs: Dictionary of coefficients calculated using frp_coeffs
+    :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
+
+    :return: Dictionary of flux ratio priors for 2MASS and WISE bands
+    """
     if method == 'lin':
         # Return a dictionary of ufloat priors on flux ratios
         d = {}
