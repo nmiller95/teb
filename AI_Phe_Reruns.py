@@ -72,6 +72,7 @@ d = {
 lratios[k] = d
 
 # CREATE FLUX RATIO PRIORS
+# NEEDS REWRITING FOR NEW FUNCTIONS
 # frp = flux_ratio_priors(1.05, 6440, 5220)
 
 # DATA INPUT - Parallax
@@ -94,7 +95,7 @@ elif M_H == 0.0 or M_H == -0.5:
 else:
     raise ValueError
 
-# No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
+# NEEDS REWRITING TO INCLUDE EBV METHOD and FIX LOGICAL PROBLEMS LATER
 if include_ebv_prior:
     ebv_prior = ufloat(0.0, 0.005)
 redlaw = ReddeningLaw.from_extinction_model('mwavg')
@@ -102,10 +103,6 @@ redlaw = ReddeningLaw.from_extinction_model('mwavg')
 # DATA INPUT - stellar radius
 R_1 = ufloat(1.8036, 0.0022)  # Rosseland radius derived from Maxted radius
 R_2 = ufloat(2.9303, 0.0023)  # Rosseland radius derived from Maxted radius
-# R_1 = ufloat(1.8050, 0.0022)  # Final values from TESS light curve - Maxted et al. (2020)
-# R_2 = ufloat(2.9332, 0.0023)  # Final values from TESS light curve - Maxted et al. (2020)
-# Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
-# R_Sun = 6.957e8 m,  parsec = 3.085677581e16 m
 theta1 = 2 * plx * R_1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
 theta2 = 2 * plx * R_2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
 theta_cov = covariance_matrix([theta1, theta2])[0][1]
@@ -167,6 +164,9 @@ nsteps = 5000
 with Pool() as pool:
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=args, pool=pool)
     sampler.run_mcmc(pos, nsteps, progress=True)
+
+# CLEAN UP PLOTTING - INCLUDE AS OPTIONS IN FUNCTION OR SEPARATE FUNC?
+# ALSO MAKE A STYLE SHEET TO SAVE ON LINES IN THIS SCRIPT
 
 # af = sampler.acceptance_fraction
 # print('\nMedian acceptance fraction =',np.median(af))
