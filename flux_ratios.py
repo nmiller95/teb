@@ -33,3 +33,12 @@ class FluxRatio:
         self.id = id
         self.band = band
         self.value = ufloat(value, error)
+        if id in response_files.keys:
+            response_table = Table.read(response_files[id], format='ascii')
+            self.response = response_table['col2']
+            if id in ['J', 'H', 'Ks', 'W1', 'W2', 'W3', 'W4']:
+                self.wave = response_table['col1'] * 1e4  # Convert microns to Angstrom
+            else:
+                self.wave = response_table['col1']
+        elif id in ['G', 'RP', 'BP']:
+            pass
