@@ -42,3 +42,6 @@ class FluxRatio:
                 self.wave = response_table['col1']
         elif id in ['G', 'RP', 'BP']:
             pass
+        else:
+            raise ValueError
+
