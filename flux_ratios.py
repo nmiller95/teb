@@ -21,22 +21,34 @@ response_files = dict(FUV='Response/EA-fuv_im.tbl', NUV='Response/EA-nuv_im.tbl'
 
 class FluxRatio:
     def __init__(self, unique_id, band, value, error):
-        # This should take the ID, band, value and error of a flux ratio and
-        # read in the corresponding wavelength and response arrays. Returns a
-        # dictionary of flux ratios as before, with extra tag (band)
+        """
+        Initialises input data, reads and processes response functions from file.
+
+        :param unique_id: Unique name for bandpass, can be same as band
+        :param band: Band, must match a key in response_files dictionary
+        :param value: Flux ratio value, float.
+        :param error: Error in flux ratio, float.
+        """
         self.id = unique_id
         self.band = band
-        self.value = ufloat(value, error)
+        if type(value) is float and type(error) is float:
+            if value >= 0:
+                self.value = ufloat(value, error)
+            else:
+                raise ValueError('Flux ratio value must be greater than 0')
+        else:
+            raise TypeError('Flux ratio value and error must have type = float')
 
         if self.band in response_files.keys():
-            response_table = Table.read(response_files[self.band], format='ascii')
+            response_table = Table.read(response_files[self.band], format='ascii',
+                                        names=['wave', 'resp'])
             if self.band in ['J', 'H', 'Ks', 'W1', 'W2', 'W3', 'W4']:
-                self.wave = array(response_table['col1'] * 1e4, dtype='f8')  # um to Angstrom
+                self.wave = array(response_table['wave'] * 1e4, dtype='f8')  # um to Angstrom
             elif self.band == 'TESS':
-                self.wave = array(response_table['col1'] * 10, dtype='f8')  # nm to Angstrom
+                self.wave = array(response_table['wave'] * 10, dtype='f8')  # nm to Angstrom
             else:
-                self.wave = array(response_table['col1'], dtype='f8')
-            self.response = interp1d(self.wave, response_table['col2'],
+                self.wave = array(response_table['wave'], dtype='f8')
+            self.response = interp1d(self.wave, response_table['resp'],
                                      bounds_error=False, fill_value=0)
 
         elif self.band in ['G', 'RP', 'BP']:
@@ -57,14 +69,14 @@ class FluxRatio:
             self.photon = False
 
     def __call__(self):
+        """
+        Saves flux ratio value, response interpolating function to dictionary
+
+        :return: Unique band ID (str), flux ratio value, response function and detector type (dict)
+        """
         flux_ratio_dict = {
             'Value': self.value,
             'R': self.response,
             'photon': self.photon
         }
-
         return self.id, flux_ratio_dict
-
-
-frd = FluxRatio('B1', 'J', 1.02, 0.03)
-print(frd())
