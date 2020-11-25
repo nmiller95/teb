@@ -15,6 +15,7 @@ from scipy.optimize import minimize
 from response import extra_data, colors_data
 from flux2mag import Flux2mag
 from functions import flux_ratio_priors, lnprob
+import flux_ratios as fr
 
 # CHANGE RUN INFO HERE
 # RUNS L, M, N REQUIRE MORE THOROUGH CHANGES TO THE SOURCE CODE
@@ -33,137 +34,107 @@ apply_nir_priors = True
 # INITIALISE FLUX2MAG CLASS WITH TARGET STAR
 flux2mag = Flux2mag('AI Phe', extra_data, colors_data)
 
-l = pickle.load(open("lratio_priors.pickle", "rb"))
-# Fix typo in R1, R2 values
-l['R1']['Value'] = ufloat(1.197, 0.024)
-l['R2']['Value'] = ufloat(1.198, 0.024)
-l['u']['Value'] = ufloat(0.475, 0.017)
-l['v']['Value'] = ufloat(0.624, 0.009)
-l['b']['Value'] = ufloat(0.870, 0.006)
-l['y']['Value'] = ufloat(1.036, 0.007)
-l['u320']['Value'] = ufloat(0.342, 0.042)
-l['u220n']['Value'] = ufloat(0.030, 0.066)
-l['u220w']['Value'] = ufloat(0.059, 0.090)
-l['TESS']['Value'] = ufloat(1.319, 0.001)
-
-# Convert wavelength/response to interpolating functions
 lratios = {}
-for k in l.keys():
-    if l[k]['Response'] is not None:
-        d = {}
-        d['Value'] = l[k]['Value']
-        w = np.array(l[k]['Wavelength'], dtype='f8')
-        R = l[k]['Response']
-        d['R'] = interp1d(w, R, bounds_error=False, fill_value=0)
-        if k == "TESS":
-            d['photon'] = True
-        else:
-            d['photon'] = False
-        lratios[k] = d
-
-# H-band flux ratio from Gallenne et al., 2019
-# Use a nominal error of 0.01
-k = 'H'
-d = {
-    'Value': ufloat(100 / 49.7, 0.01),
-    'R': flux2mag.R[k],
-    'photon': True
-}
-lratios[k] = d
+t_flux_ratios = Table.read('flux_ratios.in', format='ascii',
+                           names=['unique_id', 'band', 'value', 'error'])
+for row in t_flux_ratios:
+    k, d = fr.FluxRatio(str(row[0]), str(row[1]), float(row[2]), float(row[3]))()
+    lratios[k] = d
+print(lratios)
 
 # CREATE FLUX RATIO PRIORS
 # NEEDS REWRITING FOR NEW FUNCTIONS
 # frp = flux_ratio_priors(1.05, 6440, 5220)
 
-# DATA INPUT - Parallax
-plx_Gallenne = ufloat(5.905, 0.024)
-gaia_zp = ufloat(-0.031, 0.011)
-plx_DR2 = ufloat(5.8336, 0.0262) - gaia_zp
-plx = (plx_Gallenne + plx_DR2) / 2
-
-# READ / GENERATE SUITABLE STELLAR MODELS
-if M_H == -0.14:
-    spec1a = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=binning, M_H=0.0, aFe=0.0, reload=True)
-    spec1b = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=binning, M_H=-0.5, aFe=0.2, reload=True)
-    spec2a = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=binning, M_H=0.0, aFe=0.0, reload=True)
-    spec2b = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=binning, M_H=-0.5, aFe=0.2, reload=True)
-    spec1 = 0.72 * spec1a + 0.28 * spec1b
-    spec2 = 0.72 * spec2a + 0.28 * spec2b
-elif M_H == 0.0 or M_H == -0.5:
-    spec1 = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=binning, M_H=M_H, aFe=aFe, reload=True)
-    spec2 = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=binning, M_H=M_H, aFe=aFe, reload=True)
-else:
-    raise ValueError
-
-# NEEDS REWRITING TO INCLUDE EBV METHOD and FIX LOGICAL PROBLEMS LATER
-if include_ebv_prior:
-    ebv_prior = ufloat(0.0, 0.005)
-redlaw = ReddeningLaw.from_extinction_model('mwavg')
-
-# DATA INPUT - stellar radius
-R_1 = ufloat(1.8036, 0.0022)  # Rosseland radius derived from Maxted radius
-R_2 = ufloat(2.9303, 0.0023)  # Rosseland radius derived from Maxted radius
-theta1 = 2 * plx * R_1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
-theta2 = 2 * plx * R_2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
-theta_cov = covariance_matrix([theta1, theta2])[0][1]
-theta_cor = correlation_matrix([theta1, theta2])[0][1]
-
-Teff1 = 6223
-Teff2 = 5135
-# Copy starting values to new variables
-theta1_ = theta1.n
-theta2_ = theta2.n
-ebv_ = ebv_prior.n
-sigma_ext = 0.008
-sigma_l = 0.01
-sigma_c = 0.005
-params = [Teff1, Teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l, sigma_c]
-params = params + [0] * Nc1
-params = params + [0] * Nc2
-
-parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l', 'sigma_c']
-parname = parname + ["c_1,{}".format(j + 1) for j in range(Nc1)]
-parname = parname + ["c_2,{}".format(j + 1) for j in range(Nc2)]
-
-# INITIAL LOG LIKELIHOOD FUNCTION
-lnlike = lnprob(params, flux2mag, lratios,
-                theta1, theta2, spec1, spec2,
-                ebv_prior, redlaw, Nc1,
-                apply_flux_ratio_priors=apply_nir_priors,
-                verbose=True)
-print('Initial log-likelihood = {:0.2f}'.format(lnlike))
-
-# NELDER-MEAD OPTIMISE THE SOLUTION
-nll = lambda *args: -lnprob(*args)
-args = (flux2mag, lratios, theta1, theta2,
-        spec1, spec2, ebv_prior, redlaw, Nc1)
-soln = minimize(nll, params, args=args, method='Nelder-Mead')
-
-# RE-INITIALISE LOG LIKELIHOOD FUNCTION WITH OPTIMISED SOLUTION
-lnlike = lnprob(soln.x, flux2mag, lratios,
-                theta1, theta2, spec1, spec2,
-                ebv_prior, redlaw, Nc1,
-                apply_flux_ratio_priors=apply_nir_priors,
-                verbose=True)
-
-
-# INITIALISE PARAMETER SPACE FOR MCMC
-steps = [25, 25,  # T_eff,1, T_eff,2
-         0.0005, 0.0007,  # theta_1 ,theta_2
-         0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
-         *[0.01] * Nc1, *[0.01] * Nc2]  # c_1,1 ..   c_2,1 ..
-nwalkers = 256
-ndim = len(soln.x)
-pos = np.zeros([nwalkers, ndim])
-for i, x in enumerate(soln.x):
-    pos[:, i] = x + steps[i] * np.random.randn(nwalkers)
-nsteps = 5000
-
-
-# RUN MCMC
-with Pool() as pool:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=args, pool=pool)
-    sampler.run_mcmc(pos, nsteps, progress=True)
+# # DATA INPUT - Parallax
+# plx_Gallenne = ufloat(5.905, 0.024)
+# gaia_zp = ufloat(-0.031, 0.011)
+# plx_DR2 = ufloat(5.8336, 0.0262) - gaia_zp
+# plx = (plx_Gallenne + plx_DR2) / 2
+#
+# # READ / GENERATE SUITABLE STELLAR MODELS
+# if M_H == -0.14:
+#     spec1a = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=binning, M_H=0.0, aFe=0.0, reload=True)
+#     spec1b = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=binning, M_H=-0.5, aFe=0.2, reload=True)
+#     spec2a = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=binning, M_H=0.0, aFe=0.0, reload=True)
+#     spec2b = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=binning, M_H=-0.5, aFe=0.2, reload=True)
+#     spec1 = 0.72 * spec1a + 0.28 * spec1b
+#     spec2 = 0.72 * spec2a + 0.28 * spec2b
+# elif M_H == 0.0 or M_H == -0.5:
+#     spec1 = flint.ModelSpectrum.from_parameters(Tref1, 4.0, binning=binning, M_H=M_H, aFe=aFe, reload=True)
+#     spec2 = flint.ModelSpectrum.from_parameters(Tref2, 3.5, binning=binning, M_H=M_H, aFe=aFe, reload=True)
+# else:
+#     raise ValueError
+#
+# # NEEDS REWRITING TO INCLUDE EBV METHOD and FIX LOGICAL PROBLEMS LATER
+# if include_ebv_prior:
+#     ebv_prior = ufloat(0.0, 0.005)
+# redlaw = ReddeningLaw.from_extinction_model('mwavg')
+#
+# # DATA INPUT - stellar radius
+# R_1 = ufloat(1.8036, 0.0022)  # Rosseland radius derived from Maxted radius
+# R_2 = ufloat(2.9303, 0.0023)  # Rosseland radius derived from Maxted radius
+# theta1 = 2 * plx * R_1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+# theta2 = 2 * plx * R_2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+# theta_cov = covariance_matrix([theta1, theta2])[0][1]
+# theta_cor = correlation_matrix([theta1, theta2])[0][1]
+#
+# Teff1 = 6223
+# Teff2 = 5135
+# # Copy starting values to new variables
+# theta1_ = theta1.n
+# theta2_ = theta2.n
+# ebv_ = ebv_prior.n
+# sigma_ext = 0.008
+# sigma_l = 0.01
+# sigma_c = 0.005
+# params = [Teff1, Teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l, sigma_c]
+# params = params + [0] * Nc1
+# params = params + [0] * Nc2
+#
+# parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l', 'sigma_c']
+# parname = parname + ["c_1,{}".format(j + 1) for j in range(Nc1)]
+# parname = parname + ["c_2,{}".format(j + 1) for j in range(Nc2)]
+#
+# # INITIAL LOG LIKELIHOOD FUNCTION
+# lnlike = lnprob(params, flux2mag, lratios,
+#                 theta1, theta2, spec1, spec2,
+#                 ebv_prior, redlaw, Nc1,
+#                 apply_flux_ratio_priors=apply_nir_priors,
+#                 verbose=True)
+# print('Initial log-likelihood = {:0.2f}'.format(lnlike))
+#
+# # NELDER-MEAD OPTIMISE THE SOLUTION
+# nll = lambda *args: -lnprob(*args)
+# args = (flux2mag, lratios, theta1, theta2,
+#         spec1, spec2, ebv_prior, redlaw, Nc1)
+# soln = minimize(nll, params, args=args, method='Nelder-Mead')
+#
+# # RE-INITIALISE LOG LIKELIHOOD FUNCTION WITH OPTIMISED SOLUTION
+# lnlike = lnprob(soln.x, flux2mag, lratios,
+#                 theta1, theta2, spec1, spec2,
+#                 ebv_prior, redlaw, Nc1,
+#                 apply_flux_ratio_priors=apply_nir_priors,
+#                 verbose=True)
+#
+#
+# # INITIALISE PARAMETER SPACE FOR MCMC
+# steps = [25, 25,  # T_eff,1, T_eff,2
+#          0.0005, 0.0007,  # theta_1 ,theta_2
+#          0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
+#          *[0.01] * Nc1, *[0.01] * Nc2]  # c_1,1 ..   c_2,1 ..
+# nwalkers = 256
+# ndim = len(soln.x)
+# pos = np.zeros([nwalkers, ndim])
+# for i, x in enumerate(soln.x):
+#     pos[:, i] = x + steps[i] * np.random.randn(nwalkers)
+# nsteps = 5000
+#
+#
+# # RUN MCMC
+# with Pool() as pool:
+#     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=args, pool=pool)
+#     sampler.run_mcmc(pos, nsteps, progress=True)
 
 # CLEAN UP PLOTTING - INCLUDE AS OPTIONS IN FUNCTION OR SEPARATE FUNC?
 # ALSO MAKE A STYLE SHEET TO SAVE ON LINES IN THIS SCRIPT
@@ -270,8 +241,8 @@ with Pool() as pool:
 # print('T_eff,2 = {:0.0f} +/- {:0.0f} (rnd.) +/- {:0.0f} (sys.) K'.
 #          format(T_eff_2, rnderr_2, syserr_2))
 
-
-# OUTPUT DATA
-pfile = "{}_{:0.0f}_{:0.0f}+{:+0.1f}_{}_coeffs.p".format(run, Tref1, Tref2, M_H, Nc1)
-with open(pfile, 'wb') as f:
-    pickle.dump(sampler, f)
+#
+# # OUTPUT DATA
+# pfile = "{}_{:0.0f}_{:0.0f}+{:+0.1f}_{}_coeffs.p".format(run, Tref1, Tref2, M_H, Nc1)
+# with open(pfile, 'wb') as f:
+#     pickle.dump(sampler, f)

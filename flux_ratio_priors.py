@@ -85,7 +85,7 @@ def fitcol(band, Tbl, Tref=5777, method='quad'):
         print('incorrect')
 
 
-def frp_coeffs(Tref1, Tref2, table1, table2, method='quad'):
+def frp_coeffs(Tref1, Tref2, table1=table1, table2=table2, method='quad'):
     """
     Calculates coefficients for flux ratio prior calculation.
 

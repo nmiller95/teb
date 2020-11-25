@@ -45,6 +45,8 @@ class FluxRatio:
             if self.band in ['J', 'H', 'Ks', 'W1', 'W2', 'W3', 'W4']:
                 self.wave = array(response_table['wave'] * 1e4, dtype='f8')  # um to Angstrom
             elif self.band == 'TESS':
+                response_table = Table.read(response_files[self.band], format='ascii.csv',
+                                            names=['wave', 'resp'], data_start=7)
                 self.wave = array(response_table['wave'] * 10, dtype='f8')  # nm to Angstrom
             else:
                 self.wave = array(response_table['wave'], dtype='f8')
