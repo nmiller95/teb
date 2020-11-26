@@ -172,7 +172,7 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
     RV = flux2mag.R['V'](wave)
     lV = simps(RV * f_2, wave) / simps(RV * f_1, wave)
     # IT WILL BREAK HERE
-    frp = flux_ratio_priors(lV, Teff1, Teff2)
+    frp = flux_ratio_priors(lV,Teff1,Teff2, Tref1_frp, Tref2_frp, frp_coeffs)
     if verbose:
         print('Flux ratio priors:')
     chisq_flux_ratio_priors = 0

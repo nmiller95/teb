@@ -5,33 +5,43 @@ from astroquery.xmatch import XMatch
 from scipy.stats.mstats import theilslopes
 from scipy.optimize import minimize
 from uncertainties import ufloat
+import yaml
 
-t_hdu1 = Table.read('GCS3_WISE.fits', hdu=1)
-t_hdu2 = Table.read('GCS3_WISE.fits', hdu=2)
-t = join(t_hdu1, t_hdu2[(t_hdu2['HIP'] > 0)], 'HIP')
 
-ebv_range = (-1, 0.01)
-logg1_range = (3.5, 4.5)
-logg2_range = (3.8, 4.8)
-teff1_range = (5400, 6600)
-teff2_range = (5300, 6500)
+def configure():
+    """
+    Reads the GCS III and WISE data, applies cuts based on config file
 
-qual = t['l'] == 0
-ebv = (t['E(B-V)'] > ebv_range[0]) & (t['E(B-V)'] < ebv_range[1])
-logg1 = (t['logg'] > logg1_range[0]) & (t['logg'] < logg1_range[1])
-logg2 = (t['logg'] > logg2_range[0]) & (t['logg'] < logg2_range[1])
-teff1 = (t['Teff'] > teff1_range[0]) & (t['Teff'] < teff1_range[1])
-teff2 = (t['Teff'] > teff2_range[0]) & (t['Teff'] < teff2_range[1])
+    :return: Reference temperatures for primary and secondary star, cross-matched tables
+        corresponding to primary and secondary stars based on the ranges specified in the config file
+    """
+    t_hdu1 = Table.read('GCS3_WISE.fits', hdu=1)
+    t_hdu2 = Table.read('GCS3_WISE.fits', hdu=2)
+    t = join(t_hdu1, t_hdu2[(t_hdu2['HIP'] > 0)], 'HIP')
 
-t1 = t[qual & ebv & logg1 & teff1]
-t2 = t[qual & ebv & logg2 & teff2]
+    stream = open('flux_ratio_priors.yaml', 'r')
+    constraints = yaml.safe_load(stream)
 
-table1 = XMatch.query(cat1=t1, cat2='vizier:II/311/wise',
-                      max_distance=6 * u.arcsec, colRA1='RAJ2000', colDec1='DEJ2000',
-                      colRA2='RAJ2000', colDec2='DEJ2000')
-table2 = XMatch.query(cat1=t2, cat2='vizier:II/311/wise',
-                      max_distance=6 * u.arcsec, colRA1='RAJ2000', colDec1='DEJ2000',
-                      colRA2='RAJ2000', colDec2='DEJ2000')
+    qual = t['l'] == 0
+    ebv = (t['E(B-V)'] > constraints['E(B-V)'][0]) & (t['E(B-V)'] < constraints['E(B-V)'][1])
+    logg1 = (t['logg'] > constraints['logg1'][0]) & (t['logg'] < constraints['logg1'][1])
+    logg2 = (t['logg'] > constraints['logg2'][0]) & (t['logg'] < constraints['logg2'][1])
+    teff1 = (t['Teff'] > constraints['Teff1'][0]) & (t['Teff'] < constraints['Teff1'][1])
+    teff2 = (t['Teff'] > constraints['Teff2'][0]) & (t['Teff'] < constraints['Teff2'][1])
+
+    Tref1 = np.mean(np.array(constraints['Teff1']))
+    Tref2 = np.mean(np.array(constraints['Teff2']))
+
+    t1 = t[qual & ebv & logg1 & teff1]
+    t2 = t[qual & ebv & logg2 & teff2]
+
+    table1 = XMatch.query(cat1=t1, cat2='vizier:II/311/wise',
+                          max_distance=6 * u.arcsec, colRA1='RAJ2000', colDec1='DEJ2000',
+                          colRA2='RAJ2000', colDec2='DEJ2000')
+    table2 = XMatch.query(cat1=t2, cat2='vizier:II/311/wise',
+                          max_distance=6 * u.arcsec, colRA1='RAJ2000', colDec1='DEJ2000',
+                          colRA2='RAJ2000', colDec2='DEJ2000')
+    return Tref1, Tref2, table1, table2
 
 
 def mad(p, x, y):
@@ -49,7 +59,7 @@ def fitcol(band, Tbl, Tref=5777, method='quad'):
     :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
     :type Tbl: astropy.table.Table
 
-    :returns: Coefficients and rms of the fit
+    :return: Coefficients and rms of the fit
     """
     # dictionary of R values from Yuan et al., MNRAS 430, 2188–2199 (2013)
     # extrapolated/guessed for w3 and w4 - negligible for E(B-V)<0.05 anyway
@@ -85,7 +95,7 @@ def fitcol(band, Tbl, Tref=5777, method='quad'):
         print('incorrect')
 
 
-def frp_coeffs(Tref1, Tref2, table1=table1, table2=table2, method='quad'):
+def frp_coeffs(Tref1, Tref2, table1, table2, method='quad'):
     """
     Calculates coefficients for flux ratio prior calculation.
 
@@ -158,3 +168,10 @@ def flux_ratio_priors(Vrat, Teff1, Teff2, Tref1, Tref2, coeffs, method='quad'):
         return d
     else:
         print('incorrect - method is lin or quad only')
+
+
+tref1, tref2, tab1, tab2 = configure()
+print('configured')
+coeffs = frp_coeffs(tref1, tref2, tab1, tab2)
+print('coeffs done')
+print(flux_ratio_priors(1.03, 6200, 6100, tref1, tref2, coeffs))
