@@ -6,6 +6,8 @@ from scipy.stats.mstats import theilslopes
 from scipy.optimize import minimize
 from uncertainties import ufloat
 import yaml
+import warnings
+warnings.filterwarnings('ignore')
 
 
 def configure():
@@ -26,11 +28,8 @@ def configure():
     ebv = (t['E(B-V)'] > constraints['E(B-V)'][0]) & (t['E(B-V)'] < constraints['E(B-V)'][1])
     logg1 = (t['logg'] > constraints['logg1'][0]) & (t['logg'] < constraints['logg1'][1])
     logg2 = (t['logg'] > constraints['logg2'][0]) & (t['logg'] < constraints['logg2'][1])
-    teff1 = (t['Teff'] > constraints['Teff1'][0]) & (t['Teff'] < constraints['Teff1'][1])
-    teff2 = (t['Teff'] > constraints['Teff2'][0]) & (t['Teff'] < constraints['Teff2'][1])
-
-    Tref1 = np.mean(np.array(constraints['Teff1']))
-    Tref2 = np.mean(np.array(constraints['Teff2']))
+    teff1 = (t['Teff'] > constraints['Tref1'][0]) & (t['Teff'] < constraints['Tref1'][1])
+    teff2 = (t['Teff'] > constraints['Tref2'][0]) & (t['Teff'] < constraints['Tref2'][1])
 
     t1 = t[qual & ebv & logg1 & teff1]
     t2 = t[qual & ebv & logg2 & teff2]
@@ -41,7 +40,14 @@ def configure():
     table2 = XMatch.query(cat1=t2, cat2='vizier:II/311/wise',
                           max_distance=6 * u.arcsec, colRA1='RAJ2000', colDec1='DEJ2000',
                           colRA2='RAJ2000', colDec2='DEJ2000')
-    return Tref1, Tref2, table1, table2
+
+    Tref1 = np.mean(np.array(constraints['Tref1']))
+    Tref2 = np.mean(np.array(constraints['Tref2']))
+    method = constraints['method'][0]
+    flux_ratio = constraints['flux_ratio'][0]
+    Teff1 = constraints['Teff1'][0]
+    Teff2 = constraints['Teff2'][0]
+    return Tref1, Tref2, table1, table2, method, flux_ratio, Teff1, Teff2
 
 
 def mad(p, x, y):
@@ -92,7 +98,7 @@ def fitcol(band, Tbl, Tref=5777, method='quad'):
         rms = res[i].std()
         return p[0], p[1], p[2], result.fun
     else:
-        print('incorrect')
+        print("Invalid method specified. Use 'quad' or 'lin'.")
 
 
 def frp_coeffs(Tref1, Tref2, table1, table2, method='quad'):
@@ -125,7 +131,7 @@ def frp_coeffs(Tref1, Tref2, table1, table2, method='quad'):
             data[tag] = {'p01': p01, 'p11': p11, 'p21': p21, 'r1': r2,
                          'p02': p02, 'p12': p12, 'p22': p22, 'r2': r2}
     else:
-        print('method must be lin or quad')
+        print("Invalid method specified. Use 'quad' or 'lin'.")
     return data
 
 
@@ -167,11 +173,13 @@ def flux_ratio_priors(Vrat, Teff1, Teff2, Tref1, Tref2, coeffs, method='quad'):
             d[b] = ufloat(L, e_L)
         return d
     else:
-        print('incorrect - method is lin or quad only')
+        print("Invalid method specified. Use 'quad' or 'lin'.")
 
 
-tref1, tref2, tab1, tab2 = configure()
-print('configured')
-coeffs = frp_coeffs(tref1, tref2, tab1, tab2)
-print('coeffs done')
-print(flux_ratio_priors(1.03, 6200, 6100, tref1, tref2, coeffs))
+print('Configuring flux ratio prior settings...')
+tref1, tref2, tab1, tab2, method, fratio, teff1, teff2 = configure()
+print('Fitting V-K vs. Teff for specified subset of stars...')
+coeffs = frp_coeffs(tref1, tref2, tab1, tab2, method=method)
+print('Calculating flux ratio priors...')
+frp_dictionary = flux_ratio_priors(fratio, teff1, teff2, tref1, tref2, coeffs, method=method)
+print('Done.')
