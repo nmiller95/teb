@@ -3,6 +3,7 @@ from uncertainties import ufloat
 from uncertainties.umath import log10
 import numpy as np
 from astropy.table import Table
+# TODO sort this nonsense out
 
 # Response functions for IUE fluxes
 transmission = pickle.load(open("Response/transmission.pickle", "rb"))
