@@ -139,6 +139,37 @@ class Flux2mag:
         self.w_pivot = w_pivot
 
         if colors_data:
+            for x in colors_data:
+                if x['type'] in ['by', 'm1', 'c1']:
+                    stromgren_w, stromgren_r = {}, {}
+                    for m in ('u', 'v', 'b', 'y'):
+                        # Reads individual filter info from files
+                        t = Table.read("Response/{}_Bessell2005.csv".format(m))
+                        stromgren_w[m] = np.array(t['wave'])
+                        stromgren_r[m] = np.array(t['response'])
+
+                    stromgren_v = {
+                        'u': 9.139833801171253e-07,
+                        'v': 1.2227871972005228e-06,
+                        'b': 1.0300321185051395e-06,
+                        'y': 7.412341517648064e-07
+                    }
+                    # Zero point and error is average colour o-c offset and standard deviation TODO: Check this
+                    if x['type'] == 'by':
+                        x['zp'] = ufloat(-0.0014, 0.0045)
+                    elif x['type'] == 'm1':
+                        x['zp'] = ufloat(0.0243, 0.0062)
+                    elif x['type'] == 'c1':
+                        x['zp'] = ufloat(-0.0102, 0.0083)
+
+                    x['wave'] = stromgren_w
+                    x['resp'] = stromgren_r
+                    x['vega_zp'] = stromgren_v
+
+                elif x['type'] == 'BPRP':
+                    # TODO: Gaia BP-RP colour
+                    pass
+
             self.colors_data = colors_data
 
         # -------------- RETRIEVE STANDARD PHOTOMETRY WITH SIMBAD + VIZIER QUERIES -------------- #
@@ -252,21 +283,21 @@ class Flux2mag:
                 b = x['tag']
                 mag = {}
                 f_interp = interp1d(wave, f_lambda)
-                for m in ('u', 'v', 'b', 'y'):
-                    mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]), x['wave'][m]) / x['vega_zp'][m])
-                if x['type'] == 'by':
-                    # by_o = x['color']
-                    syn_col[b] = mag['b'] - mag['y'] + x['zp'] + 0.003
-                if x['type'] == 'm1':
-                    # m1_o = x['color']
-                    by_c = mag['b'] - mag['y']
-                    vb_c = mag['v'] - mag['b']
-                    syn_col[b] = vb_c - by_c + x['zp'] + 0.157
-                if x['type'] == 'c1':
-                    # c1_o = x['color']
-                    uv_c = mag['u'] - mag['v']
-                    vb_c = mag['v'] - mag['b']
-                    syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
+
+                if b in ['by', 'm1', 'c1']:
+                    # Calculates the Stromgren synthetic colours
+                    for m in ('u', 'v', 'b', 'y'):
+                        mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]), x['wave'][m]) / x['vega_zp'][m])
+                    if x['type'] == 'by':
+                        syn_col[b] = mag['b'] - mag['y'] + x['zp'] + 0.003
+                    if x['type'] == 'm1':
+                        by_c = mag['b'] - mag['y']
+                        vb_c = mag['v'] - mag['b']
+                        syn_col[b] = vb_c - by_c + x['zp'] + 0.157
+                    if x['type'] == 'c1':
+                        uv_c = mag['u'] - mag['v']
+                        vb_c = mag['v'] - mag['b']
+                        syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
             self.syn_col = syn_col
         else:
             self.syn_col = None
@@ -287,3 +318,32 @@ class Flux2mag:
             return chisq, lnlike_m, lnlike_c
         else:
             return chisq, lnlike_m
+
+
+# # Skymapper magnitudes
+# bands = ['u', 'v']
+# sm_mags = [ufloat(11.7698, 0.0091), ufloat(11.3121, 0.0105)]
+# sm_zps = [ufloat(-48.6 - 0.254, 0.216), ufloat(-48.6 - 0.090, 0.024)]  # ZPs updated 25/11/20
+# extra_data = []
+# for i, band in enumerate(bands):
+#     skymapper = Table.read(f'Response/SkyMapper_SkyMapper.{band}.dat', format='ascii')
+#     d = {
+#         'tag': band,
+#         'mag': sm_mags[i],
+#         'zp': sm_zps[i],
+#         'wave': np.array(skymapper['col1']),
+#         'resp': np.array(skymapper['col2'])
+#     }
+#     extra_data.append(d)
+#
+# Gby = {'tag': '(b-y)_G',
+#        'type': 'by',
+#        'color': ufloat(0.431, 0.0037)}
+# Gm1 = {'tag': 'm1_G',
+#        'type': 'm1',
+#        'color': ufloat(0.209, 0.0041)}
+# Gc1 = {'tag': 'c1_G',
+#        'type': 'c1',
+#        'color': ufloat(0.356, 0.0066)}
+#
+# f2m = Flux2mag('ASAS_J051753-5406.0', extra_data=extra_data, colors_data=[Gby, Gm1, Gc1])
