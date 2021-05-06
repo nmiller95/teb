@@ -1,0 +1,41 @@
+### Include your photometric data values here.
+# Photometry NOT from Galex, Gaia, 2MASS or WISE.
+extra_data:
+  skymapper_u:
+    tag: u
+    mag:
+      - 11.7698
+      - 0.0091
+    zp:
+      - -48.346
+      - 0.216
+    file: Response/SkyMapper_SkyMapper.u.dat
+  skymapper_v:
+    tag: v
+    mag:
+      - 11.3121
+      - 0.0105
+    zp:
+      - -48.51
+      - 0.024
+    file: Response/SkyMapper_SkyMapper.v.dat
+# Colours. Stromgren b-y, m1, c1, and Gaia BP-RP currently supported. TODO: Option for custom colours
+colors_data:
+  stromgren_by:
+    tag: (b-y)
+    type: by
+    color:
+      - 0.431
+      - 0.0037
+  stromgren_m1:
+    tag: m1
+    type: m1
+    color:
+      - 0.209
+      - 0.0041
+  stromgren_c1:
+    tag: c1
+    type: c1
+    color:
+      - 0.356
+      - 0.0066
