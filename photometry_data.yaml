@@ -1,4 +1,12 @@
 ### Include your photometric data values here.
+flux_ratios:
+  TESS:
+    type: TESS
+    value:
+      - 0.3 # dummy numbers
+      - 0.01
+    file: i guess
+
 # Photometry NOT from Galex, Gaia, 2MASS or WISE.
 extra_data:
   skymapper_u:
