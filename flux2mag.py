@@ -22,14 +22,14 @@ class Flux2mag:
 
         :param name: Name of star, as understood by SIMBAD
         :type name: basestring
-        :param extra_data: List of dictionaries containing informatino about non-standard magnitudes.
+        :param extra_data: List of dictionaries containing information about non-standard magnitudes.
             Each dictionary must contain:
                 'tag' - string, photometric band/system name/label
                 'mag' - ufloat, observed AB magnitude with standard error
                 'zp'  - ufloat, zero-point and standard error
                 'wave' - array, wavelengths for response function, ** in angstrom **
                 'resp'  - array, response function
-        :type extra_data: list
+        :type extra_data: list or none
         :param colors_data: List of dictionaries containing information about photometric colors.
             Each dictionary must contain:
                 'tag' - string, photometric color name/label (must be unique), e.g. '(b-y)_1'
@@ -39,7 +39,7 @@ class Flux2mag:
                 'wave' - array, wavelengths for response function, ** in angstrom **
                 'resp' - array, response function
                 'vega_zp' - dictionary, contains zero-points of the component passbands, e.g. u,b,v,y, from Vega (?)
-        :type colors_data: list
+        :type colors_data: list or none
         """
 
         self.name = name
@@ -51,9 +51,12 @@ class Flux2mag:
         self.zp = {
             'FUV': ufloat(-48.60, 0.134),
             'NUV': ufloat(-48.60, 0.154),
-            'G': ufloat(25.6914, 0.0011),
-            'BP': ufloat(25.3488, 0.0005),
-            'RP': ufloat(24.7627, 0.0035),
+            # 'G': ufloat(25.6914, 0.0011),  # Values for Gaia DR2
+            # 'BP': ufloat(25.3488, 0.0005),  # Values for Gaia DR2
+            # 'RP': ufloat(24.7627, 0.0035),  # Values for Gaia DR2
+            'G': ufloat(25.8010, 0.0028),
+            'BP': ufloat(25.3540, 0.0023),
+            'RP': ufloat(24.7627, 0.0016),
             'J': ufloat(-0.025, 0.005),
             'H': ufloat(+0.004, 0.005),
             'Ks': ufloat(-0.015, 0.005),
@@ -97,7 +100,9 @@ class Flux2mag:
 
         # Gaia DR2 - revised band passes
         names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
-        t = Table.read('Response/GaiaDR2_RevisedPassbands.dat',
+        # t = Table.read('Response/GaiaDR2_RevisedPassbands.dat',  # Values for Gaia DR2
+        #                format='ascii', names=names)
+        t = Table.read('Response/GaiaEDR3_passbands.dat',
                        format='ascii', names=names)
         w = t['wave'] * 10
         for b in ['G', 'BP', 'RP']:
@@ -128,28 +133,34 @@ class Flux2mag:
                 R[b] = interp1d(w, r, bounds_error=False, fill_value=0)
                 w_pivot[b] = wp(w, r)
                 self.zp[b] = x['zp']
+            self.extra_data = extra_data
 
         self.R = R
         self.w_pivot = w_pivot
-        self.extra_data = extra_data
+
         if colors_data:
             self.colors_data = colors_data
 
         # -------------- RETRIEVE STANDARD PHOTOMETRY WITH SIMBAD + VIZIER QUERIES -------------- #
-        # Catalogue query functions for Gaia DR2, 2MASS, GALEX and WISE
+        # Catalogue query functions for Gaia EDR3, 2MASS, GALEX and WISE
         Vizier_r = Vizier(columns=["*", "+_r"])
         # Use WISE All Sky values instead of ALLWISE for consistency with flux ratio
         # calibration and because these are more reliable at the bright end for W1 and W2
-        v = Vizier_r.query_object(name, catalog=['I/345/gaia2', 'II/311/wise', 'II/335/galex_ais'])
+        # v = Vizier_r.query_object(name, catalog=['I/345/gaia2', 'II/311/wise', 'II/335/galex_ais'])  # Gaia DR2
+        v = Vizier_r.query_object(name, catalog=['I/350/gaiaedr3', 'II/311/wise', 'II/335/galex_ais'])
 
         sb = Simbad()
         sb.add_votable_fields('flux(J)', 'flux_error(J)', 'flux(H)', 'flux_error(H)', 'flux(K)', 'flux_error(K)')
 
         obs_mag = dict()
-        obs_mag['G'] = 0.0505 + 0.9966 * ufloat(v[0][0]['Gmag'], v[0][0]['e_Gmag'])
-        obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag']) - 0.0026
-        obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag']) + 0.0008
-        for b in ['J', 'H', 'K', 'W1', 'W2', 'W3', 'W4']:
+        # obs_mag['G'] = 0.0505 + 0.9966 * ufloat(v[0][0]['Gmag'], v[0][0]['e_Gmag'])  # Gaia DR2
+        # obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag']) - 0.0026  # Gaia DR2
+        # obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag']) + 0.0008  # Gaia DR2
+        obs_mag['G'] = ufloat(v[0][0]['Gmag'], v[0][0]['e_Gmag'])
+        obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag'])
+        obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag'])
+
+        for b in ['J', 'H', 'K', 'W1', 'W2', 'W3', 'W4']:  # TODO: Add fail-safe for when no magnitudes found.
             if b == 'J' or b == 'H' or b == 'K':
                 sb_tab = sb.query_object(name)
                 if b == 'K':
@@ -273,4 +284,6 @@ class Flux2mag:
                 wt = 1 / (z.s ** 2 + sig_col ** 2)
                 chisq += z.n ** 2 * wt
                 lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
-        return chisq, lnlike_m, lnlike_c
+            return chisq, lnlike_m, lnlike_c
+        else:
+            return chisq, lnlike_m
