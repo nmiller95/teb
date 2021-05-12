@@ -318,32 +318,3 @@ class Flux2mag:
             return chisq, lnlike_m, lnlike_c
         else:
             return chisq, lnlike_m
-
-
-# # Skymapper magnitudes
-# bands = ['u', 'v']
-# sm_mags = [ufloat(11.7698, 0.0091), ufloat(11.3121, 0.0105)]
-# sm_zps = [ufloat(-48.6 - 0.254, 0.216), ufloat(-48.6 - 0.090, 0.024)]  # ZPs updated 25/11/20
-# extra_data = []
-# for i, band in enumerate(bands):
-#     skymapper = Table.read(f'Response/SkyMapper_SkyMapper.{band}.dat', format='ascii')
-#     d = {
-#         'tag': band,
-#         'mag': sm_mags[i],
-#         'zp': sm_zps[i],
-#         'wave': np.array(skymapper['col1']),
-#         'resp': np.array(skymapper['col2'])
-#     }
-#     extra_data.append(d)
-#
-# Gby = {'tag': '(b-y)_G',
-#        'type': 'by',
-#        'color': ufloat(0.431, 0.0037)}
-# Gm1 = {'tag': 'm1_G',
-#        'type': 'm1',
-#        'color': ufloat(0.209, 0.0041)}
-# Gc1 = {'tag': 'c1_G',
-#        'type': 'c1',
-#        'color': ufloat(0.356, 0.0066)}
-#
-# f2m = Flux2mag('ASAS_J051753-5406.0', extra_data=extra_data, colors_data=[Gby, Gm1, Gc1])
