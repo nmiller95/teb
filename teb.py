@@ -20,8 +20,9 @@ import pickle
 from scipy.optimize import minimize
 from response import extra_data, colors_data
 from flux2mag import Flux2mag
-import flux_ratios as fr
+import flux_ratio_priors as frp
 import yaml
+import sys
 
 
 def list_to_ufloat(two_item_list):
@@ -37,28 +38,46 @@ if __name__ == "__main__":
         for f in photometry['flux_ratios']:
             f['value'] = list_to_ufloat(f['value'])
         flux_ratios = photometry['flux_ratios']
-    except KeyError("No flux ratios provided in photometry_data.yaml"):
+    except KeyError:
+        print("No flux ratios provided in photometry_data.yaml")
         flux_ratios = None
     try:
         for e in photometry['extra_data']:
             e['mag'] = list_to_ufloat(e['mag'])
             e['zp'] = list_to_ufloat(e['zp'])
         flux_ratios = photometry['extra_data']
-    except KeyError("No additional magnitudes provided in photometry_data.yaml"):
+    except KeyError:
+        print("No additional magnitudes provided in photometry_data.yaml")
         extra_data = None
     try:
         for c in photometry['colors_data']:
             c['color'] = list_to_ufloat(c['color'])
         colors_data = photometry['colors_data']
-    except KeyError("No colours provided in photometry_data.yaml"):
+    except KeyError:
+        print("No colours provided in photometry_data.yaml")
         colors_data = None
 
-    # Set up models / run details
+    # Load basic, custom and model parameters from config.yaml
     stream = open('config.yaml', 'r')
     parameters = yaml.safe_load(stream)
 
+    try:
+        name = parameters['name']
+        f2m = Flux2mag(name, extra_data, colors_data)
+    except IndexError:
+        raise SystemExit("Star name not resolved by SIMBAD")
+
+    plx = list_to_ufloat(parameters['plx'])
+    r1 = list_to_ufloat(parameters['r1'])
+    r2 = list_to_ufloat(parameters['r2'])
+    ebv_prior = list_to_ufloat(parameters['ebv'])
     print(parameters)
 
-
-
-    # f2m = Flux2mag('ASAS_J051753-5406.0', extra_data=extra_data, colors_data=[Gby, Gm1, Gc1])
+    if parameters['apply_fratio_prior']:
+        print('Configuring flux ratio prior settings...')
+        tref1, tref2, tab1, tab2, method, fratio, teff1, teff2 = frp.configure()
+        print('Fitting V-K vs. Teff for specified subset of stars...')
+        coeffs = frp.frp_coeffs(tref1, tref2, tab1, tab2, method=method)
+        print('Calculating flux ratio priors...')
+        frp_dictionary = frp.flux_ratio_priors(fratio, teff1, teff2, tref1, tref2, coeffs, method=method)
+        print('Flux ratio priors setup complete.')
