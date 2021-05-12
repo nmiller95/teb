@@ -1,5 +1,5 @@
 ### Basic parameters for the temperature method.
-name: AI Phe  # Target name; must be resolvable by simbad
+name: ASAS_J051753-5406.0  # Target name; must be resolvable by simbad
 run_id: test  # Prefix used in output save file
 
 # Configure the method
