@@ -32,7 +32,7 @@ def list_to_ufloat(two_item_list):
 
 if __name__ == "__main__":
     # Load and initialise photometric data from photometry_data.yaml
-    stream = open('photometry_data.yaml', 'r')
+    stream = open('config/photometry_data.yaml', 'r')
     photometry = yaml.safe_load(stream)
     try:
         for f in photometry['flux_ratios']:
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         colors_data = None
 
     # Load basic, custom and model parameters from config.yaml
-    stream = open('config.yaml', 'r')
+    stream = open('config/config.yaml', 'r')
     parameters = yaml.safe_load(stream)
 
     try:

@@ -21,7 +21,7 @@ def configure():
     t_hdu2 = Table.read('GCS3_WISE.fits', hdu=2)
     t = join(t_hdu1, t_hdu2[(t_hdu2['HIP'] > 0)], 'HIP')
 
-    stream = open('flux_ratio_priors.yaml', 'r')
+    stream = open('config/flux_ratio_priors.yaml', 'r')
     constraints = yaml.safe_load(stream)
 
     qual = t['l'] == 0
