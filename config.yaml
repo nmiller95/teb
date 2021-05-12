@@ -1,0 +1,31 @@
+### Basic parameters for the temperature method.
+name: AI Phe  # Target name; must be resolvable by simbad
+run_id: test  # Prefix used in output save file
+
+# Configure the method
+type: single              # Whether to use a single distortion function or two separate distortion functions.
+                          # Use "double" when Teff1 > Teff2, "single" when Teff1 ~ Teff2 (<200K difference).
+n_coeffs: 10              # Number of distortion coefficients to use. Use 0 for a simple SED fit.
+apply_ebv_prior: True     # Whether to apply the E(B-V) prior specified below
+apply_fratio_prior: True  # Whether to apply the NIR flux ratio priors
+
+# Physical parameters of the two stars
+plx:
+  - 0.0       # Parallax and error, in milliarcseconds
+  - 0.0
+r1:
+  - 0.0       # Primary radius and error, in solar units
+  - 0.0
+r2:
+  - 0.0       # Secondary radius and error, in solar units
+  - 0.0
+ebv:
+  - 0.0       # Prior on interstellar E(B-V) and error
+  - 0.0
+
+# Configure starting values of stellar models to use as basis for integrating function
+binning: 50   # Wavelength resolution to use, in Angstroms.
+tref1: 6400   # Effective temperature for primary star, in K
+tref2: 6300   # Effective temperature for secondary star, in K
+m_h: -0.1     # Metallicity for both stars
+aFe: 0.0      # Alpha fraction for both stars
