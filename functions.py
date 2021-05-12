@@ -6,28 +6,6 @@ from scipy.special import legendre
 from scipy.integrate import simps
 
 
-# def flux_ratio_priors(Vrat, TeffF, TeffK):
-#     # Vrat in the sense Flux_F/Flux_K
-#     data = {
-#         'J': {'cF': 0.919, 'mF': -0.408, 'sigF': 0.015, 'cK': 1.511, 'mK': -0.605, 'sigK': 0.018},
-#         'H': {'cF': 1.118, 'mF': -0.549, 'sigF': 0.019, 'cK': 1.918, 'mK': -0.821, 'sigK': 0.027},
-#         'Ks': {'cF': 1.181, 'mF': -0.564, 'sigF': 0.017, 'cK': 2.033, 'mK': -0.872, 'sigK': 0.025},
-#         'W1': {'cF': 1.230, 'mF': -0.568, 'sigF': 0.027, 'cK': 2.094, 'mK': -0.865, 'sigK': 0.035},
-#         'W2': {'cF': 1.234, 'mF': -0.547, 'sigF': 0.039, 'cK': 2.101, 'mK': -0.928, 'sigK': 0.062},
-#         'W3': {'cF': 1.182, 'mF': -0.554, 'sigF': 0.021, 'cK': 2.062, 'mK': -0.907, 'sigK': 0.036},
-#         'W4': {'cF': 1.225, 'mF': -0.519, 'sigF': 0.050, 'cK': 2.095, 'mK': -0.951, 'sigK': 0.060}
-#     }
-#     # Return a dictionary of ufloat priors on flux ratios
-#     d = {}
-#     for b in data.keys():
-#         colF = data[b]['cF'] + data[b]['mF'] * (TeffF - 6400) / 1000.0
-#         colK = data[b]['cK'] + data[b]['mK'] * (TeffK - 5200) / 1000.0
-#         L = Vrat * 10 ** (0.4 * (colK - colF))
-#         e_L = np.hypot(data[b]['sigF'], data[b]['sigK'])
-#         d[b] = ufloat(L, e_L)
-#     return d
-
-
 def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, Nc1,
            wmin=1000, wmax=300000, return_flux=False, blobs=False, apply_flux_ratio_priors=True,
            debug=False, verbose=False, single_dist_function=False):
@@ -171,7 +149,7 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
     # Priors on IR flux ratios
     RV = flux2mag.R['V'](wave)
     lV = simps(RV * f_2, wave) / simps(RV * f_1, wave)
-    # IT WILL BREAK HERE
+    # IT WILL BREAK HERE TODO: stop this from breaking
     frp = flux_ratio_priors(lV,Teff1,Teff2, Tref1_frp, Tref2_frp, frp_coeffs)
     if verbose:
         print('Flux ratio priors:')
