@@ -30,19 +30,28 @@ def list_to_ufloat(two_item_list):
 
 
 if __name__ == "__main__":
-    # Load and initialise photometric data
+    # Load and initialise photometric data from photometry_data.yaml
     stream = open('photometry_data.yaml', 'r')
     photometry = yaml.safe_load(stream)
-    print(photometry)
-
-    for f in photometry['flux_ratios']:
-        f['value'] = list_to_ufloat(f['value'])
-    for e in photometry['extra_data']:
-        e['mag'] = list_to_ufloat(e['mag'])
-        e['zp'] = list_to_ufloat(e['zp'])
-    for c in photometry['colors_data']:
-        c['color'] = list_to_ufloat(c['color'])
-    print(photometry)
+    try:
+        for f in photometry['flux_ratios']:
+            f['value'] = list_to_ufloat(f['value'])
+        flux_ratios = photometry['flux_ratios']
+    except KeyError("No flux ratios provided in photometry_data.yaml"):
+        flux_ratios = None
+    try:
+        for e in photometry['extra_data']:
+            e['mag'] = list_to_ufloat(e['mag'])
+            e['zp'] = list_to_ufloat(e['zp'])
+        flux_ratios = photometry['extra_data']
+    except KeyError("No additional magnitudes provided in photometry_data.yaml"):
+        extra_data = None
+    try:
+        for c in photometry['colors_data']:
+            c['color'] = list_to_ufloat(c['color'])
+        colors_data = photometry['colors_data']
+    except KeyError("No colours provided in photometry_data.yaml"):
+        colors_data = None
 
     # Set up models / run details
     stream = open('config.yaml', 'r')
