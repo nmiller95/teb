@@ -24,6 +24,7 @@ from flux2mag import Flux2mag
 import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
 import yaml
+from functions import lnprob
 
 
 def list_to_ufloat(two_item_list):
@@ -80,7 +81,7 @@ if __name__ == "__main__":
         raise SystemExit("Star name not resolved by SIMBAD")
 
     # Flux ratio prior calculation with methods from flux_ratio_priors.py
-    if parameters['apply_fratio_prior']: # TODO: change this stuff to logging rather than print to screen?
+    if parameters['apply_fratio_prior']:  # TODO: change this stuff to logging rather than print to screen?
         print('Configuring flux ratio prior settings...')
         tref1, tref2, tab1, tab2, method, fratio, teff1, teff2 = frp.configure()
         print('Fitting V-K vs. Teff for specified subset of stars...')
@@ -91,8 +92,78 @@ if __name__ == "__main__":
     else:
         frp_dictionary = None
 
-    plx = list_to_ufloat(parameters['plx'])
+    # Parallax load and apply zeropoint
+    gaia_zp = ufloat(-0.017, 0.011)  # Gaia EDR3. ZP error fixed at DR2 value for now
+    plx = list_to_ufloat(parameters['plx']) - gaia_zp
+
+    # Loading models (interpolating if required)
+    binning = parameters['binning']
+    tref1 = parameters['tref1']
+    tref2 = parameters['tref2']
+    m_h = parameters['m_h']
+    aFe = parameters['aFe']
+    # TODO: check which models are supported in the BT Settl download
+    try:
+        if tref1 % 50:
+            # select temperature step below and above
+            # work out how much to weight each one by
+            if tref2 % 50:
+                # as before
+                pass
+        if m_h % 0.1:
+            # as before. more restrictions for this one?
+            if aFe % 0.1:
+                # as before. more restrictions for this one?
+                pass
+        else:  # everything is simple
+            pass
+        spec1 = flint.ModelSpectrum.from_parameters(tref1, 4.0, binning=binning, M_H=m_h, aFe=aFe, reload=True)
+        spec2 = flint.ModelSpectrum.from_parameters(tref2, 4.0, binning=binning, M_H=m_h, aFe=aFe, reload=True)
+    except ValueError:
+        print("something went wrong loading your model. try better values or something")
+        # spec1 = spec1a  # 0.8*spec1a + 0.2*spec1b
+        # spec2 = spec2a  # 0.8*spec2a + 0.2*spec2b
+
+    # No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
+    ebv_prior = list_to_ufloat(parameters['ebv'])
+    redlaw = ReddeningLaw.from_extinction_model('mwavg')
+
+    # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
+    # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
     r1 = list_to_ufloat(parameters['r1'])
     r2 = list_to_ufloat(parameters['r2'])
-    ebv_prior = list_to_ufloat(parameters['ebv'])
-    print(parameters)
+    theta1 = 2 * plx * r1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+    theta2 = 2 * plx * r2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+    # print('theta1 = {:0.4f} mas'.format(theta1))
+    # print('theta2 = {:0.4f} mas'.format(theta2))
+    theta_cov = covariance_matrix([theta1, theta2])[0][1]
+    theta_cor = correlation_matrix([theta1, theta2])[0][1]
+    # print('cov(theta_1,theta2) = {:0.2e}'.format(theta_cov))
+    # print('cor(theta_1,theta2) = {:0.2f}'.format(theta_cor))
+
+    # Getting the lnlike set up and print initial result
+    Teff1 = 6400
+    Teff2 = 6270
+    # Copy starting values to new variables
+    theta1_ = theta1.n
+    theta2_ = theta2.n
+    ebv_ = ebv_prior.n
+    sigma_ext = 0.008
+    sigma_l = 0.01
+    sigma_c = 0.005
+    nc = parameters['n_coeffs']
+    params = [Teff1, Teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l]  # , sigma_c]
+    params = params + [0] * nc
+    # params = params + [0] * nc  # This from single vs double distortion
+
+    parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l']  # ,'sigma_c']
+    parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
+    # parname = parname + ["c_2,{}".format(j+1) for j in range(nc)]
+
+    for pn, pv in zip(parname, params):
+        print('{} = {}'.format(pn, pv))
+
+    lnlike = lnprob(params, f2m, flux_ratios,
+                    theta1, theta2, spec1, spec2,
+                    ebv_prior, redlaw, nc, verbose=True, debug=False)
+    print('Initial log-likelihood = {:0.2f}'.format(lnlike))

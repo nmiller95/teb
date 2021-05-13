@@ -149,4 +149,4 @@ class SpectralEnergyDistribution(SourceSpectrum):
     @classmethod
     def from_model(cls, model_spectrum, reddening_law, distortion_polynomial,
                    total_flux):
-        return cls(Empirical1D, ones(1001))
+        return cls(Empirical1D, np.ones(1001))
