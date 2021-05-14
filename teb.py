@@ -32,6 +32,29 @@ def list_to_ufloat(two_item_list):
     return ufloat(two_item_list[0], two_item_list[1])
 
 
+def goat(teff, logg, mh, afe, bin_size):
+    # this is where the intricate interpolation goodness will happen - perhaps export to functions.py if it gets long
+    try:
+        if teff % 50:
+            # select temperature step below and above; work out interpolation weights
+            pass
+        if logg % 0.5:
+            # select logg above and below; etc
+            pass
+        if mh % 0.1:
+            # as before.
+            pass
+        else:  # everything is simple
+            pass
+        spec_a = flint.ModelSpectrum.from_parameters(teff, 4.0, binning=bin_size, M_H=mh, aFe=afe, reload=True)
+        spec_b = flint.ModelSpectrum.from_parameters(teff, 4.0, binning=bin_size, M_H=mh, aFe=afe, reload=True)
+        return 0.8*spec_a + 0.2*spec_b
+    except ValueError:
+        print("something went wrong loading your model. try better values or something")
+    # it might be easier just to heckin' round the temperature and logg to nearest acceptable value,
+    # and accept that m/h and a/Fe is going to be 0 for these models...
+
+
 if __name__ == "__main__":
     # Load and initialise photometric data from photometry_data.yaml
     stream = open('config/photometry_data.yaml', 'r')
@@ -104,31 +127,8 @@ if __name__ == "__main__":
     aFe = parameters['aFe']
 
     # spec1 = flint.ModelSpectrum.from_parameters(tref1, 4.0, binning=binning, M_H=0.0, aFe=0.0, reload=True)
-    url = "http://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011/SPECTRA/lte064-4.0-0.0a+0.0.BT-Settl.spec.7.bz2"
-    Table.read(url, hdu=1, format='fits')
-
-def dumb_function():
-    # TODO: check which models are supported in the BT Settl download
-    try:
-        if tref1 % 50:
-            # select temperature step below and above
-            # work out how much to weight each one by
-            if tref2 % 50:
-                # as before
-                pass
-        if m_h % 0.1:
-            # as before. more restrictions for this one?
-            if aFe % 0.1:
-                # as before. more restrictions for this one?
-                pass
-        else:  # everything is simple
-            pass
-        spec1 = flint.ModelSpectrum.from_parameters(tref1, 4.0, binning=binning, M_H=m_h, aFe=aFe, reload=True)
-        spec2 = flint.ModelSpectrum.from_parameters(tref2, 4.0, binning=binning, M_H=m_h, aFe=aFe, reload=True)
-    except ValueError:
-        print("something went wrong loading your model. try better values or something")
-        # spec1 = spec1a  # 0.8*spec1a + 0.2*spec1b
-        # spec2 = spec2a  # 0.8*spec2a + 0.2*spec2b
+    # url = "http://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011/SPECTRA/lte064-4.0-0.0a+0.0.BT-Settl.spec.7.bz2"
+    # Table.read(url, hdu=1, format='fits')
 
     # No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
     ebv_prior = list_to_ufloat(parameters['ebv'])
@@ -169,7 +169,7 @@ def dumb_function():
     for pn, pv in zip(parname, params):
         print('{} = {}'.format(pn, pv))
 
-    lnlike = lnprob(params, f2m, flux_ratios,
-                    theta1, theta2, spec1, spec2,
-                    ebv_prior, redlaw, nc, verbose=True, debug=False)
-    print('Initial log-likelihood = {:0.2f}'.format(lnlike))
+    # lnlike = lnprob(params, f2m, flux_ratios,
+    #                 theta1, theta2, spec1, spec2,
+    #                 ebv_prior, redlaw, nc, verbose=True, debug=False)
+    # print('Initial log-likelihood = {:0.2f}'.format(lnlike))
