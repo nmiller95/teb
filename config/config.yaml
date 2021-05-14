@@ -7,7 +7,7 @@ type: single              # Whether to use a single distortion function or two s
                           # Use "double" when Teff1 > Teff2, "single" when Teff1 ~ Teff2 (<200K difference).
 n_coeffs: 10              # Number of distortion coefficients to use. Use 0 for a simple SED fit.
 apply_ebv_prior: True     # Whether to apply the E(B-V) prior specified below
-apply_fratio_prior: True  # Whether to apply the NIR flux ratio priors
+apply_fratio_prior: False  # Whether to apply the NIR flux ratio priors
 
 # Physical parameters of the two stars
 plx:

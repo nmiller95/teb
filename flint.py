@@ -10,6 +10,7 @@ from scipy.special import legendre
 import warnings
 import os
 
+
 __all__ = ['SpectralEnergyDistribution', 'ModelSpectrum', 'Bandpass',
            'DistortionPolynomial']
 
@@ -51,8 +52,7 @@ class ModelSpectrum(SourceSpectrum):
         if binning is not None and os.path.isfile(fits_file_0) and not reload:
             T = Table.read(fits_file_0)
 
-        f_url = ("http://osubdd.ens-lyon.fr/phoenix/phoenix.cgi" +
-                 "?c=i&a=mime:application/fits&o=phoenix:Grids/BT-Settl/" +
+        f_url = ("http://phoenix.ens-lyon.fr/Grids/BT-Settl/" +
                  "{}/SPECTRA/{}.BT-Settl.spec.7.bz2")
         url = f_url.format(subdir[version], tag)
         with warnings.catch_warnings():

@@ -102,6 +102,12 @@ if __name__ == "__main__":
     tref2 = parameters['tref2']
     m_h = parameters['m_h']
     aFe = parameters['aFe']
+
+    # spec1 = flint.ModelSpectrum.from_parameters(tref1, 4.0, binning=binning, M_H=0.0, aFe=0.0, reload=True)
+    url = "http://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011/SPECTRA/lte064-4.0-0.0a+0.0.BT-Settl.spec.7.bz2"
+    Table.read(url, hdu=1, format='fits')
+
+def dumb_function():
     # TODO: check which models are supported in the BT Settl download
     try:
         if tref1 % 50:
