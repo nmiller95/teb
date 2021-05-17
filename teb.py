@@ -33,6 +33,7 @@ def list_to_ufloat(two_item_list):
 
 
 def goat(teff, logg, mh, afe, bin_size):
+    # TODO: this, better
     # this is where the intricate interpolation goodness will happen - perhaps export to functions.py if it gets long
     try:
         if teff % 50:
