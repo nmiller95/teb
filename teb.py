@@ -26,6 +26,7 @@ from functions import lnprob, list_to_ufloat
 
 
 if __name__ == "__main__":
+    # TODO: stick some of this photometry stuff in flux_ratios.py or functions.py
     # Load and initialise photometric data from photometry_data.yaml
     stream = open('config/photometry_data.yaml', 'r')
     photometry = yaml.safe_load(stream)
@@ -63,6 +64,7 @@ if __name__ == "__main__":
         print("No colours provided in photometry_data.yaml")
         colors_data = None
 
+    ############################################################
     # Load basic, custom and model parameters from config.yaml
     stream = open('config/config.yaml', 'r')
     parameters = yaml.safe_load(stream)
@@ -89,26 +91,6 @@ if __name__ == "__main__":
     gaia_zp = ufloat(-0.017, 0.011)  # Gaia EDR3. ZP error fixed at DR2 value for now
     plx = list_to_ufloat(parameters['plx']) - gaia_zp
 
-    # Loading models (interpolating if required)
-    binning = parameters['binning']
-    tref1 = parameters['tref1']
-    tref2 = parameters['tref2']
-    m_h = parameters['m_h']
-    aFe = parameters['aFe']
-
-    # ATTEMPT 1: Read model via flint. Fails but pasting URL into browser works
-    # spec1 = flint.ModelSpectrum.from_parameters(tref1, 4.0, binning=binning, M_H=0.0, aFe=0.0, reload=True)
-    # ATTEMPT 2: Read model direct via astropy table. Fails because URL certificate expired
-    # url = "http://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011/SPECTRA/lte064-4.0-0.0a+0.0.BT-Settl.spec.7.bz2"
-    # Table.read(url, hdu=1, format='fits')
-    # ATTEMPT 3: Bodge as before, not reloading file. Requires desired model to have already been processed into fits
-    spec1 = flint.ModelSpectrum.from_parameters(6300, 4.0, binning=binning, reload=False)
-    spec2 = flint.ModelSpectrum.from_parameters(6200, 4.0, binning=binning, reload=False)
-
-    # No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
-    ebv_prior = list_to_ufloat(parameters['ebv'])
-    redlaw = ReddeningLaw.from_extinction_model('mwavg')
-
     # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
     # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
     r1 = list_to_ufloat(parameters['r1'])
@@ -118,6 +100,23 @@ if __name__ == "__main__":
     theta_cov = covariance_matrix([theta1, theta2])[0][1]
     theta_cor = correlation_matrix([theta1, theta2])[0][1]
 
+    # No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
+    ebv_prior = list_to_ufloat(parameters['ebv'])
+    redlaw = ReddeningLaw.from_extinction_model('mwavg')
+
+    ############################################################
+    # Loading models (interpolating if required)
+    binning = parameters['binning']
+    tref1 = parameters['tref1']
+    tref2 = parameters['tref2']
+    m_h = parameters['m_h']
+    aFe = parameters['aFe']
+
+    # Total bodge. TODO: this, properly
+    spec1 = flint.ModelSpectrum.from_parameters(6300, 4.0, binning=binning, reload=False)
+    spec2 = flint.ModelSpectrum.from_parameters(6200, 4.0, binning=binning, reload=False)
+
+    ############################################################
     # Getting the lnlike set up and print initial result
     teff1 = parameters['teff1']
     teff2 = parameters['teff2']
@@ -156,3 +155,17 @@ if __name__ == "__main__":
                     apply_flux_ratio_priors=parameters['apply_fratio_prior'],
                     verbose=True, debug=False)
     print('Initial log-likelihood = {:0.2f}'.format(lnlike))
+
+    ############################################################
+    # Nelder-Mead optimisation  # TODO: needs to handle 0,1,2 options
+    nll = lambda *args: -lnprob(*args)
+    args = (f2m, flux_ratios, theta1, theta2,
+            spec1, spec2, ebv_prior, redlaw, nc)
+    soln = minimize(nll, params, args=args, method='Nelder-Mead')
+
+    # Re-initialise log likelihood function with optimised solution
+    lnlike = lnprob(soln.x, f2m, flux_ratios,
+                    theta1, theta2, spec1, spec2,
+                    ebv_prior, redlaw, nc,
+                    apply_flux_ratio_priors=parameters['apply_fratio_prior'],
+                    verbose=True)

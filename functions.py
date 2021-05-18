@@ -13,7 +13,7 @@ def list_to_ufloat(two_item_list):
 
 def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, Nc1,
            wmin=1000, wmax=300000, return_flux=False, blobs=False, apply_flux_ratio_priors=True,
-           debug=False, verbose=False, single_dist_function=False):
+           debug=False, verbose=False, distortion_type=2):
     """
     Log probability function for the fundamental effective temperature of eclipsing binary stars method.
 
@@ -35,11 +35,11 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
     :param apply_flux_ratio_priors: Whether to apply the flux ratio priors
     :param debug: Whether to print extra stuff
     :param verbose: Whether to print out all the parameters
-    :param single_dist_coefficient: If the 2 model spectra are very similar, can use 1 set of
-        distortion coefficients for both stars
+    :param distortion_type: 0, 1 or 2. If the 2 stars are very similar, can use 1 set of
+        distortion coefficients for both stars.
     :return: Either log likelihood and log prior, or wavelength, flux and distortion arrays
     """
-    SIGMA_SB = 5.670367E-5  # erg.cm-2.s-1.K-4
+    sigma_sb = 5.670367E-5  # erg.cm-2.s-1.K-4
 
     Teff1, Teff2, Theta1, Theta2, ebv, sigma_ext, sigma_l, sigma_col = params[0:8]  # SIGMA_COL
 
@@ -78,10 +78,10 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
     flux1 = flux1 * (1 + distort1)
     flux1 = flux1 / simps(flux1, wave)
 
-    if single_dist_function:
+    if distortion_type == 1:
         flux2 = flux2 * (1 + distort1)
         flux2 = flux2 / simps(flux2, wave)
-    else:
+    elif distortion_type == 2:
         distort2 = np.zeros_like(flux2)
         for n, c in enumerate(params[8 + Nc1:]):
             if abs(c) > 1: return -np.inf
@@ -92,16 +92,20 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
             return -np.inf
         flux2 = flux2 * (1 + distort2)
         flux2 = flux2 / simps(flux2, wave)
+    else:
+        pass  # TODO: zero distortion option
 
     extinc = redlaw.extinction_curve(ebv)(wave).value
-    f_1 = 0.25 * SIGMA_SB * (Theta1 / 206264806) ** 2 * Teff1 ** 4 * flux1
-    f_2 = 0.25 * SIGMA_SB * (Theta2 / 206264806) ** 2 * Teff2 ** 4 * flux2
+    f_1 = 0.25 * sigma_sb * (Theta1 / 206264806) ** 2 * Teff1 ** 4 * flux1
+    f_2 = 0.25 * sigma_sb * (Theta2 / 206264806) ** 2 * Teff2 ** 4 * flux2
     flux = (f_1 + f_2) * extinc
     if return_flux:
-        if single_dist_function:
+        if distortion_type == 1:
             return wave, flux, f_1 * extinc, f_2 * extinc, distort1
-        else:
+        elif distortion_type ==2:
             return wave, flux, f_1 * extinc, f_2 * extinc, distort1, distort2
+        else:
+            pass  # TODO: you know what.
 
     chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)  # SIGMA_COL
     if verbose:

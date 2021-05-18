@@ -241,11 +241,11 @@ class Flux2mag:
                     simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
             syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
 
-        P_A = 0.7278
+        p_a = 0.7278
         hc9 = 1.986445824e-16  # 10^9 hc
         # /10000 is conversion from erg/s/cm^2/A to W/m^2/nm
         for b in ['G', 'BP', 'RP']:
-            photon_flux = P_A * simps(self.R[b](wave) * wave * f_lambda / 10000, wave) / hc9
+            photon_flux = p_a * simps(self.R[b](wave) * wave * f_lambda / 10000, wave) / hc9
             syn_mag[b] = -2.5 * np.log10(photon_flux) + self.zp[b]
 
         # "+20" to account for wave in A not um
@@ -287,7 +287,8 @@ class Flux2mag:
                 if b in ['by', 'm1', 'c1']:
                     # Calculates the Stromgren synthetic colours
                     for m in ('u', 'v', 'b', 'y'):
-                        mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]), x['wave'][m]) / x['vega_zp'][m])
+                        mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]),
+                                                    x['wave'][m]) / x['vega_zp'][m])
                     if x['type'] == 'by':
                         syn_col[b] = mag['b'] - mag['y'] + x['zp'] + 0.003
                     if x['type'] == 'm1':
