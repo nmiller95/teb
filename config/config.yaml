@@ -1,19 +1,21 @@
-### Basic parameters for the temperature method.
+### Core parameters to configure the temperature method.
 name: ASAS_J051753-5406.0  # Target name; must be resolvable by simbad
 run_id: test  # Prefix used in output save file
 
 # Configure the method
-type: single              # Whether to use a single distortion function or two separate distortion functions.
-                          # Use "double" when Teff1 > Teff2, "single" when Teff1 ~ Teff2 (<200K difference).
+distortion: 1             # 0 = no distortion applied, 1 = single distortion function for both stars,
+                          # 2 = each star's SED distorted separately.
 n_coeffs: 10              # Number of distortion coefficients to use. Use 0 for a simple SED fit.
 apply_ebv_prior: True     # Whether to apply the E(B-V) prior specified below
 apply_fratio_prior: True  # Whether to apply the NIR flux ratio priors
 apply_colors: False       # Whether to include colors data
-distortion: 1             # 0 = no distortion applied, 1 = single distortion function for both stars,
-                          # 2 = each star's SED distorted separately
 sigma_ext: 0.008          # External noise
 sigma_l: 0.01             # Flux ratios
 sigma_c: 0.005            # Colors
+model_sed: Coelho_SED     # Which model SEDs to use. Soon to be supported are:
+                          # - Coelho_SED. Wide wavelength range 130nm - 100micron.
+                          # - Coelho_HR. Narrow wavelength range 250 - 900nm.
+                          # - BT_Settl_CIFIST. Entire wavelength range. Only supports M/H = 0.
 
 # Physical parameters of the two stars
 teff1: 6410   # Best value of T_eff,1, in Kelvin

@@ -9,7 +9,7 @@ from matplotlib import pylab as plt
 from astropy.table import Table
 from scipy.integrate import simps
 from uncertainties import ufloat, covariance_matrix, correlation_matrix
-from uncertainties.umath import log10
+from uncertainties.umath import log10 as ulog10
 from scipy.interpolate import interp1d
 import flint
 from synphot import ReddeningLaw
