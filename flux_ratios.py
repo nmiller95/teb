@@ -28,7 +28,7 @@ class FluxRatio:
         :param band: Band, must match a key in response_files dictionary
         :param value: Flux ratio value, float.
         :param error: Error in flux ratio, float.
-        """
+        """  # TODO: include docstring help for which 'band' inputs are valid
         self.id = unique_id
         self.band = band
         if type(value) is float and type(error) is float:

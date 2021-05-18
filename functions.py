@@ -6,6 +6,11 @@ from scipy.special import legendre
 from scipy.integrate import simps
 
 
+def list_to_ufloat(two_item_list):
+    """Turns a two item list from yaml input into a ufloat"""
+    return ufloat(two_item_list[0], two_item_list[1])
+
+
 def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, Nc1,
            wmin=1000, wmax=300000, return_flux=False, blobs=False, apply_flux_ratio_priors=True,
            debug=False, verbose=False, single_dist_function=False):

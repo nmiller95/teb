@@ -18,41 +18,11 @@ import corner
 from multiprocessing import Pool
 import pickle
 from scipy.optimize import minimize
-from response import extra_data, colors_data
 from flux2mag import Flux2mag
 import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
 import yaml
-from functions import lnprob
-
-
-def list_to_ufloat(two_item_list):
-    """Turns a two item list from yaml input into a ufloat"""
-    return ufloat(two_item_list[0], two_item_list[1])
-
-
-def get_spectra(teff, logg, mh, afe, bin_size):
-    # TODO: this, better
-    # this is where the intricate interpolation goodness will happen - perhaps export to functions.py if it gets long
-    try:
-        if teff % 50:
-            # select temperature step below and above; work out interpolation weights
-            pass
-        if logg % 0.5:
-            # select logg above and below; etc
-            pass
-        if mh % 0.1:
-            # as before.
-            pass
-        else:  # everything is simple
-            pass
-        spec_a = flint.ModelSpectrum.from_parameters(teff, 4.0, binning=bin_size, M_H=mh, aFe=afe, reload=True)
-        spec_b = flint.ModelSpectrum.from_parameters(teff, 4.0, binning=bin_size, M_H=mh, aFe=afe, reload=True)
-        return 0.8*spec_a + 0.2*spec_b
-    except ValueError:
-        print("something went wrong loading your model. try better values or something")
-    # it might be easier just to round the temperature and logg to nearest acceptable value,
-    # and accept that m/h and a/Fe is going to be 0 for these models...
+from functions import lnprob, list_to_ufloat
 
 
 if __name__ == "__main__":
@@ -182,5 +152,7 @@ if __name__ == "__main__":
 
     lnlike = lnprob(params, f2m, flux_ratios,
                     theta1, theta2, spec1, spec2,
-                    ebv_prior, redlaw, nc, verbose=True, debug=False)
+                    ebv_prior, redlaw, nc,
+                    apply_flux_ratio_priors=parameters['apply_fratio_prior'],
+                    verbose=True, debug=False)
     print('Initial log-likelihood = {:0.2f}'.format(lnlike))
