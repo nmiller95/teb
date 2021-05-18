@@ -32,7 +32,7 @@ def list_to_ufloat(two_item_list):
     return ufloat(two_item_list[0], two_item_list[1])
 
 
-def goat(teff, logg, mh, afe, bin_size):
+def get_spectra(teff, logg, mh, afe, bin_size):
     # TODO: this, better
     # this is where the intricate interpolation goodness will happen - perhaps export to functions.py if it gets long
     try:
@@ -52,7 +52,7 @@ def goat(teff, logg, mh, afe, bin_size):
         return 0.8*spec_a + 0.2*spec_b
     except ValueError:
         print("something went wrong loading your model. try better values or something")
-    # it might be easier just to heckin' round the temperature and logg to nearest acceptable value,
+    # it might be easier just to round the temperature and logg to nearest acceptable value,
     # and accept that m/h and a/Fe is going to be 0 for these models...
 
 
@@ -127,9 +127,14 @@ if __name__ == "__main__":
     m_h = parameters['m_h']
     aFe = parameters['aFe']
 
+    # ATTEMPT 1: Read model via flint. Fails but pasting URL into browser works
     # spec1 = flint.ModelSpectrum.from_parameters(tref1, 4.0, binning=binning, M_H=0.0, aFe=0.0, reload=True)
+    # ATTEMPT 2: Read model direct via astropy table. Fails because URL certificate expired
     # url = "http://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011/SPECTRA/lte064-4.0-0.0a+0.0.BT-Settl.spec.7.bz2"
     # Table.read(url, hdu=1, format='fits')
+    # ATTEMPT 3: Bodge as before, not reloading file. Requires desired model to have already been processed into fits
+    spec1 = flint.ModelSpectrum.from_parameters(6300, 4.0, binning=binning, reload=False)
+    spec2 = flint.ModelSpectrum.from_parameters(6200, 4.0, binning=binning, reload=False)
 
     # No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
     ebv_prior = list_to_ufloat(parameters['ebv'])
@@ -141,12 +146,8 @@ if __name__ == "__main__":
     r2 = list_to_ufloat(parameters['r2'])
     theta1 = 2 * plx * r1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
     theta2 = 2 * plx * r2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
-    # print('theta1 = {:0.4f} mas'.format(theta1))
-    # print('theta2 = {:0.4f} mas'.format(theta2))
     theta_cov = covariance_matrix([theta1, theta2])[0][1]
     theta_cor = correlation_matrix([theta1, theta2])[0][1]
-    # print('cov(theta_1,theta2) = {:0.2e}'.format(theta_cov))
-    # print('cor(theta_1,theta2) = {:0.2f}'.format(theta_cor))
 
     # Getting the lnlike set up and print initial result
     Teff1 = 6400
