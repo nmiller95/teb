@@ -3,7 +3,7 @@ from os.path import join, abspath, dirname
 from astropy.io.votable import parse
 from astropy.io.votable.exceptions import W10, W42
 from synphot import SpectralElement, Empirical1D, SourceSpectrum
-from synphot import BaseUnitlessSpectrum, ReddeningLaw
+from synphot import BaseUnitlessSpectrum
 from astropy.table import Table
 from astropy.units import UnitsWarning
 from scipy.special import legendre
@@ -23,13 +23,13 @@ class ModelSpectrum(SourceSpectrum):
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
 
-    def make_tag(Teff, logg, M_H, aFe):
+    def make_tag(teff, logg, M_H, aFe):
         if M_H > 0:
-            tfmt = "lte{:03.0f}-{:3.1f}+{:3.1f}a{:+3.1f}"
-            return tfmt.format(Teff / 100, logg, M_H, aFe)
+            t_fmt = "lte{:03.0f}-{:3.1f}+{:3.1f}a{:+3.1f}"
+            return t_fmt.format(teff / 100, logg, M_H, aFe)
         else:
-            tfmt = "lte{:03.0f}-{:3.1f}-{:3.1f}a{:+3.1f}"
-            return tfmt.format(Teff / 100, logg, abs(M_H), aFe)
+            t_fmt = "lte{:03.0f}-{:3.1f}-{:3.1f}a{:+3.1f}"
+            return t_fmt.format(teff / 100, logg, abs(M_H), aFe)
 
     @classmethod
     def from_parameters(cls, Teff, logg, M_H=0, aFe=0, binning=10, reload=False,
@@ -50,7 +50,7 @@ class ModelSpectrum(SourceSpectrum):
             return SourceSpectrum.from_file(fits_file)
 
         if binning is not None and os.path.isfile(fits_file_0) and not reload:
-            T = Table.read(fits_file_0)
+            t = Table.read(fits_file_0)
 
         f_url = ("http://phoenix.ens-lyon.fr/Grids/BT-Settl/" +
                  "{}/SPECTRA/{}.BT-Settl.spec.7.bz2")
@@ -58,25 +58,25 @@ class ModelSpectrum(SourceSpectrum):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UnitsWarning)
             try:
-                T = Table.read(url, hdu=1, format='fits')
+                t = Table.read(url, hdu=1, format='fits')
             except OSError:
                 raise ValueError(url)
-        T.remove_column('BBFLUX')
-        T.sort('WAVELENGTH')
-        T_g = T.group_by('WAVELENGTH')
-        T = T_g.groups.aggregate(np.mean)
-        T['FLUX'].unit = 'FLAM'
+        t.remove_column('BBFLUX')
+        t.sort('WAVELENGTH')
+        t_g = t.group_by('WAVELENGTH')
+        t = t_g.groups.aggregate(np.mean)
+        t['FLUX'].unit = 'FLAM'
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UnitsWarning)
             if not os.path.isfile(fits_file_0):
-                T.write(fits_file_0)
+                t.write(fits_file_0)
             if os.path.isfile(fits_file_0) and reload:
-                T.write(fits_file_0, overwrite=True)
+                t.write(fits_file_0, overwrite=True)
             if binning is not None:
-                T.add_column(T['WAVELENGTH'] // int(binning), name='BIN')
-                T_b = T.group_by('BIN')
-                T = T_b.groups.aggregate(np.mean)
-            T.write(fits_file, overwrite=reload)
+                t.add_column(t['WAVELENGTH'] // int(binning), name='BIN')
+                t_b = t.group_by('BIN')
+                t = t_b.groups.aggregate(np.mean)
+            t.write(fits_file, overwrite=reload)
         return SourceSpectrum.from_file(fits_file)
 
 
@@ -89,29 +89,29 @@ class Bandpass(SpectralElement):
         os.mkdir(cache_path)
 
     @classmethod
-    def from_svo(cls, FilterID, keep_neg=False, reload=False):
+    def from_svo(cls, filter_id, keep_neg=False, reload=False):
 
-        facility, filtername = FilterID.split('/')
+        facility, filter_name = filter_id.split('/')
         cls.facility = facility
-        cls.filtername = filtername
+        cls.filter_name = filter_name
 
         cache_path = join(cls.cache_path, facility)
         if not os.path.exists(cache_path):
             os.mkdir(cache_path)
-        xml_file = join(cache_path, filtername + '.xml')
+        xml_file = join(cache_path, filter_name + '.xml')
 
         if os.path.isfile(xml_file) and not reload:
             votable = parse(xml_file)
         else:
             _url = 'http://svo2.cab.inta-csic.es/svo/theory/fps/fps.php?ID={}'
-            url = _url.format(FilterID)
+            url = _url.format(filter_id)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", W42)
                 warnings.simplefilter("error", W10)
                 try:
                     votable = parse(url)
                 except W10:
-                    raise ValueError('FilterID {} not found'.format(FilterID))
+                    raise ValueError('FilterID {} not found'.format(filter_id))
             votable.to_xml(xml_file)
 
         meta = dict()
