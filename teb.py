@@ -2,7 +2,6 @@
 Main file for running all this nonsense
 Module will eventually be named teb (temperatures of eclipsing binaries)
 TODO Look into how best to get this working: command line based or something to read into scripts?
-TODO: adapt flint to be part of this module
 TODO: fix flint's model load breakages
 """
 import numpy as np
@@ -181,7 +180,7 @@ if __name__ == "__main__":
     for pn, pv in zip(parname, params):
         print('{} = {}'.format(pn, pv))
 
-    # lnlike = lnprob(params, f2m, flux_ratios,
-    #                 theta1, theta2, spec1, spec2,
-    #                 ebv_prior, redlaw, nc, verbose=True, debug=False)
-    # print('Initial log-likelihood = {:0.2f}'.format(lnlike))
+    lnlike = lnprob(params, f2m, flux_ratios,
+                    theta1, theta2, spec1, spec2,
+                    ebv_prior, redlaw, nc, verbose=True, debug=False)
+    print('Initial log-likelihood = {:0.2f}'.format(lnlike))
