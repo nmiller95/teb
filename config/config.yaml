@@ -8,20 +8,28 @@ type: single              # Whether to use a single distortion function or two s
 n_coeffs: 10              # Number of distortion coefficients to use. Use 0 for a simple SED fit.
 apply_ebv_prior: True     # Whether to apply the E(B-V) prior specified below
 apply_fratio_prior: False  # Whether to apply the NIR flux ratio priors
+apply_colors: False       # Whether to include colors data
+distortion: 1             # 0 = no distortion applied, 1 = single distortion function for both stars,
+                          # 2 = each star's SED distorted separately
+sigma_ext: 0.008          # External noise
+sigma_l: 0.01             # Flux ratios
+sigma_c: 0.005            # Colors
 
 # Physical parameters of the two stars
+teff1: 6410   # Best value of T_eff,1, in Kelvin
+teff2: 6270   # Best value of T_eff,2, in Kelvin
 plx:
-  - 0.0       # Parallax and error, in milliarcseconds
-  - 0.0
+  - 2.6256    # Gaia EDR3 parallax and error, in milliarcseconds
+  - 0.014
 r1:
-  - 0.0       # Primary radius and error, in solar units
-  - 0.0
+  - 1.935     # Primary radius and error, in solar units
+  - 0.020
 r2:
-  - 0.0       # Secondary radius and error, in solar units
-  - 0.0
+  - 1.181     # Secondary radius and error, in solar units
+  - 0.014
 ebv:
-  - 0.0       # Prior on interstellar E(B-V) and error
-  - 0.0
+  - 0.00269   # Prior on interstellar E(B-V) and error
+  - 0.00119
 
 # Configure starting values of stellar models to use as basis for integrating function
 binning: 50   # Wavelength resolution to use, in Angstroms.

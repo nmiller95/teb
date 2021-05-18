@@ -150,23 +150,33 @@ if __name__ == "__main__":
     theta_cor = correlation_matrix([theta1, theta2])[0][1]
 
     # Getting the lnlike set up and print initial result
-    Teff1 = 6400
-    Teff2 = 6270
+    teff1 = parameters['teff1']
+    teff2 = parameters['teff2']
     # Copy starting values to new variables
     theta1_ = theta1.n
     theta2_ = theta2.n
     ebv_ = ebv_prior.n
-    sigma_ext = 0.008
-    sigma_l = 0.01
-    sigma_c = 0.005
+    sigma_ext = parameters['sigma_ext']
+    sigma_l = parameters['sigma_l']
     nc = parameters['n_coeffs']
-    params = [Teff1, Teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l]  # , sigma_c]
-    params = params + [0] * nc
-    # params = params + [0] * nc  # This from single vs double distortion
 
-    parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l']  # ,'sigma_c']
-    parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
-    # parname = parname + ["c_2,{}".format(j+1) for j in range(nc)]
+    params = [teff1, teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l]
+    parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l']
+
+    if parameters['apply_colors']:
+        sigma_c = parameters['sigma_c']
+        params = params + [sigma_c]
+        parname = parname + ['sigma_c']
+
+    if parameters['distortion'] == 0:
+        pass
+    elif parameters['distortion'] == 1:
+        params = params + [0] * nc
+        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
+    elif parameters['distortion'] == 2:
+        params = params + [0] * 2*nc
+        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
+        parname = parname + ["c_2,{}".format(j+1) for j in range(nc)]
 
     for pn, pv in zip(parname, params):
         print('{} = {}'.format(pn, pv))
