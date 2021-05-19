@@ -11,6 +11,64 @@ def list_to_ufloat(two_item_list):
     return ufloat(two_item_list[0], two_item_list[1])
 
 
+def angular_diameters(param_dict):
+    """
+    Converts input radii and Gaia parallax to angular diameters in mas
+    :param param_dict: Dictionary containing parameters, loaded from config.yaml
+    :return: Angular diameters for primary and secondary stars as ufloats.
+    """
+    # Parallax load and apply zeropoint
+    gaia_zp = ufloat(-0.017, 0.011)  # Gaia EDR3. ZP error fixed at DR2 value for now
+    plx = list_to_ufloat(param_dict['plx']) - gaia_zp
+
+    # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
+    # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
+    r1 = list_to_ufloat(param_dict['r1'])
+    r2 = list_to_ufloat(param_dict['r2'])
+    theta1 = 2 * plx * r1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+    theta2 = 2 * plx * r2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+    return theta1, theta2
+
+
+def initial_parameters(param_dict, theta1, theta2, ebv_prior):
+    """
+    Loads and generates parameters for log likelihood calculations
+    :param param_dict: Dictionary containing parameters, loaded from config.yaml
+    :param theta1: Angular diameter of primary star in mas as ufloat
+    :param theta2: Angular diameter of secondary star in mas as ufloat
+    :param ebv_prior: Prior on interstellar reddening as ufloat
+    :return: Parameters and parameter names as two lists
+    """
+    teff1 = param_dict['teff1']
+    teff2 = param_dict['teff2']
+    # Copy starting values to new variables
+    theta1_ = theta1.n
+    theta2_ = theta2.n
+    ebv_ = ebv_prior.n
+    sigma_ext = param_dict['sigma_ext']
+    sigma_l = param_dict['sigma_l']
+    nc = param_dict['n_coeffs']
+
+    params = [teff1, teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l]
+    parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l']
+
+    if param_dict['apply_colors']:
+        sigma_c = param_dict['sigma_c']
+        params = params + [sigma_c]
+        parname = parname + ['sigma_c']
+
+    if param_dict['distortion'] == 0:
+        pass
+    elif param_dict['distortion'] == 1:
+        params = params + [0] * nc
+        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
+    elif param_dict['distortion'] == 2:
+        params = params + [0] * 2 * nc
+        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
+        parname = parname + ["c_2,{}".format(j + 1) for j in range(nc)]
+    return params, parname
+
+
 def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, Nc1,
            wmin=1000, wmax=300000, return_flux=False, blobs=False, apply_flux_ratio_priors=True,
            debug=False, verbose=False, distortion_type=2):

@@ -22,7 +22,7 @@ from flux2mag import Flux2mag
 import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
 import yaml
-from functions import lnprob, list_to_ufloat
+from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters
 
 
 if __name__ == "__main__":
@@ -87,20 +87,11 @@ if __name__ == "__main__":
     else:
         frp_dictionary = None
 
-    # Parallax load and apply zeropoint
-    gaia_zp = ufloat(-0.017, 0.011)  # Gaia EDR3. ZP error fixed at DR2 value for now
-    plx = list_to_ufloat(parameters['plx']) - gaia_zp
-
-    # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
-    # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
-    r1 = list_to_ufloat(parameters['r1'])
-    r2 = list_to_ufloat(parameters['r2'])
-    theta1 = 2 * plx * r1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
-    theta2 = 2 * plx * r2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+    theta1, theta2 = angular_diameters(parameters)
     theta_cov = covariance_matrix([theta1, theta2])[0][1]
     theta_cor = correlation_matrix([theta1, theta2])[0][1]
 
-    # No detectable NaI lines so E(B-V) must be very close to 0 - see 2010NewA...15..444K
+    # Reddening - prior from config.yaml and reddening law from flint
     ebv_prior = list_to_ufloat(parameters['ebv'])
     redlaw = ReddeningLaw.from_extinction_model('mwavg')
 
@@ -118,33 +109,8 @@ if __name__ == "__main__":
 
     ############################################################
     # Getting the lnlike set up and print initial result
-    teff1 = parameters['teff1']
-    teff2 = parameters['teff2']
-    # Copy starting values to new variables
-    theta1_ = theta1.n
-    theta2_ = theta2.n
-    ebv_ = ebv_prior.n
-    sigma_ext = parameters['sigma_ext']
-    sigma_l = parameters['sigma_l']
-    nc = parameters['n_coeffs']
-
-    params = [teff1, teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l]
-    parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l']
-
-    if parameters['apply_colors']:
-        sigma_c = parameters['sigma_c']
-        params = params + [sigma_c]
-        parname = parname + ['sigma_c']
-
-    if parameters['distortion'] == 0:
-        pass
-    elif parameters['distortion'] == 1:
-        params = params + [0] * nc
-        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
-    elif parameters['distortion'] == 2:
-        params = params + [0] * 2*nc
-        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
-        parname = parname + ["c_2,{}".format(j+1) for j in range(nc)]
+    nc = parameters['nc']
+    params, parname = initial_parameters(parameters, theta1, theta2, ebv_prior)
 
     for pn, pv in zip(parname, params):
         print('{} = {}'.format(pn, pv))
