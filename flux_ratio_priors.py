@@ -43,10 +43,10 @@ def configure():
 
     Tref1 = np.mean(np.array(constraints['Tref1']))
     Tref2 = np.mean(np.array(constraints['Tref2']))
-    method = constraints['method'][0]
-    flux_ratio = constraints['flux_ratio'][0]
-    Teff1 = constraints['Teff1'][0]
-    Teff2 = constraints['Teff2'][0]
+    method = constraints['method']
+    flux_ratio = constraints['flux_ratio']
+    Teff1 = constraints['Teff1']
+    Teff2 = constraints['Teff2']
     return Tref1, Tref2, table1, table2, method, flux_ratio, Teff1, Teff2
 
 
@@ -55,15 +55,15 @@ def mad(p, x, y):
     return np.mean(abs(y - p[0] - p[1] * x - p[2] * x ** 2))
 
 
-def fitcol(band, Tbl, Tref=5777, method='quad'):
+def fitcol(band, table, tref=5777, method='quad'):
     """
     Fits sample of GCS-WISE stars with either polynomial or linear relation
 
     :param band: Which photometric band to fit over, e.g. 'J'
-    :param Tbl: Table containing GCS+WISE data
-    :param Tref: Float, reference temperature in K. Default is nominal solar Teff.
+    :param table: Table containing GCS+WISE data
+    :param tref: Float, reference temperature in K. Default is nominal solar Teff.
     :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
-    :type Tbl: astropy.table.Table
+    :type table: astropy.table.Table
 
     :return: Coefficients and rms of the fit
     """
@@ -71,9 +71,9 @@ def fitcol(band, Tbl, Tref=5777, method='quad'):
     # extrapolated/guessed for w3 and w4 - negligible for E(B-V)<0.05 anyway
     R = {'Jmag': 0.72, 'Hmag': 0.46, 'Kmag': 0.306,
          'W1mag': 0.18, 'W2mag': 0.16, 'W3mag': 0.12, 'W4mag': 0.06}
-    x = (Tbl['Teff'] - Tref) / 1000
-    V0 = Tbl['Vmag1'] - 3.1 * Tbl['E(B-V)']
-    m0 = Tbl[band] - R[band] * Tbl['E(B-V)']
+    x = (table['Teff'] - tref) / 1000
+    V0 = table['Vmag1'] - 3.1 * table['E(B-V)']
+    m0 = table[band] - R[band] * table['E(B-V)']
     y = V0 - m0
     i = np.isfinite(x) & np.isfinite(y)
     x = x[i]
