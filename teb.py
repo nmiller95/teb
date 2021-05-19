@@ -87,6 +87,7 @@ if __name__ == "__main__":
     else:
         frp_dictionary = None
 
+    # Angular diameters
     theta1, theta2 = angular_diameters(parameters)
     theta_cov = covariance_matrix([theta1, theta2])[0][1]
     theta_cor = correlation_matrix([theta1, theta2])[0][1]
@@ -109,7 +110,7 @@ if __name__ == "__main__":
 
     ############################################################
     # Getting the lnlike set up and print initial result
-    nc = parameters['nc']
+    nc = parameters['n_coeffs']
     params, parname = initial_parameters(parameters, theta1, theta2, ebv_prior)
 
     for pn, pv in zip(parname, params):
