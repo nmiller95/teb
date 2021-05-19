@@ -71,9 +71,9 @@ def initial_parameters(config_dict, theta1, theta2, ebv_prior):
     return params, parname
 
 
-def lnprob(params, flux2mag, lratios, spec1, spec2, ebv_prior, redlaw, nc, frp_coeffs,
-           config_dict, wmin=1000, wmax=300000, return_flux=False, blobs=False,
-           debug=False, verbose=False):
+def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, nc, config_dict,
+           frp_coeffs=None, wmin=1000, wmax=300000, return_flux=False, blobs=False,
+           debug=False, verbose=False):  # TODO: not really sure what thetas are doing here but hey
     """
     Log probability function for the fundamental effective temperature of eclipsing binary stars method.
 
@@ -81,6 +81,8 @@ def lnprob(params, flux2mag, lratios, spec1, spec2, ebv_prior, redlaw, nc, frp_c
         teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
     :param flux2mag: Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
     :param lratios: Flux ratios and response functions (dictionary)
+    :param theta1: Angular diamater of primary star in mas
+    :param theta2: Angular diameter of secondary star in mas
     :param spec1: Model spectrum of primary star (flint.ModelSpectrum object)
     :param spec2: Model spectrum of secondary star (flint.ModelSpectrum object)
     :param ebv_prior: Prior on E(B-V) as ufloat
@@ -235,6 +237,8 @@ def lnprob(params, flux2mag, lratios, spec1, spec2, ebv_prior, redlaw, nc, frp_c
 
     # Applying priors on NIR flux ratios (if relevant)
     if config_dict['apply_flux_ratios']:
+        if not frp_coeffs:
+            pass
         RV = flux2mag.R['V'](wave)  # Response function of V band over wavelength range
         lV = simps(RV * f_2, wave) / simps(RV * f_1, wave)  # Synthetic flux ratio in V band
         # Loads reference temperatures and method from frp configuration file

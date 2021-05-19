@@ -85,6 +85,7 @@ if __name__ == "__main__":
         frp_dictionary = frp.flux_ratio_priors(fratio, teff1, teff2, tref1, tref2, coeffs, method=method)
         print('Flux ratio priors setup complete.')
     else:
+        coeffs = None
         frp_dictionary = None
 
     # Angular diameters
@@ -119,12 +120,12 @@ if __name__ == "__main__":
     lnlike = lnprob(params, f2m, flux_ratios,
                     theta1, theta2, spec1, spec2,
                     ebv_prior, redlaw, nc,
-                    apply_flux_ratio_priors=parameters['apply_fratio_prior'],
+                    config_dict=parameters, frp_coeffs=coeffs,
                     verbose=True, debug=False)
     print('Initial log-likelihood = {:0.2f}'.format(lnlike))
 
     ############################################################
-    # Nelder-Mead optimisation  # TODO: needs to handle 0,1,2 options
+    # Nelder-Mead optimisation
     nll = lambda *args: -lnprob(*args)
     args = (f2m, flux_ratios, theta1, theta2,
             spec1, spec2, ebv_prior, redlaw, nc)
@@ -134,5 +135,5 @@ if __name__ == "__main__":
     lnlike = lnprob(soln.x, f2m, flux_ratios,
                     theta1, theta2, spec1, spec2,
                     ebv_prior, redlaw, nc,
-                    apply_flux_ratio_priors=parameters['apply_fratio_prior'],
+                    config_dict=parameters, frp_coeffs=coeffs,
                     verbose=True)
