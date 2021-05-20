@@ -219,7 +219,6 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
 
     # Angular diameter log likelihood
     # See http://mathworld.wolfram.com/BivariateNormalDistribution.html, equation (1)
-    print(theta1, theta2)
     rho = correlation_matrix([theta1_in, theta2_in])[0][1]
     z = ((theta1 - theta1_in.n) ** 2 / theta1_in.s ** 2 -
          2 * rho * (theta1 - theta1_in.n) * (theta2 - theta2_in.n) / theta1_in.s / theta2_in.s +
@@ -237,7 +236,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         lnprior += -0.5 * (ebv - ebv_prior.n) ** 2 / ebv_prior.s ** 2
 
     # Applying priors on NIR flux ratios (if relevant)
-    if config_dict['apply_flux_ratios']:
+    if config_dict['apply_fratio_prior']:
         if not frp_coeffs:
             pass
         RV = flux2mag.R['V'](wave)  # Response function of V band over wavelength range

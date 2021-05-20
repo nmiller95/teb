@@ -128,7 +128,7 @@ if __name__ == "__main__":
     # Nelder-Mead optimisation
     nll = lambda *args: -lnprob(*args)
     args = (f2m, flux_ratios, theta1_in, theta2_in,
-            spec1, spec2, ebv_prior, redlaw, nc)
+            spec1, spec2, ebv_prior, redlaw, nc, parameters)
     soln = minimize(nll, params, args=args, method='Nelder-Mead')
 
     # Re-initialise log likelihood function with optimised solution
