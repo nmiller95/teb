@@ -89,9 +89,9 @@ if __name__ == "__main__":
         frp_dictionary = None
 
     # Angular diameters
-    theta1, theta2 = angular_diameters(parameters)
-    theta_cov = covariance_matrix([theta1, theta2])[0][1]
-    theta_cor = correlation_matrix([theta1, theta2])[0][1]
+    theta1_in, theta2_in = angular_diameters(parameters)
+    theta_cov = covariance_matrix([theta1_in, theta2_in])[0][1]
+    theta_cor = correlation_matrix([theta1_in, theta2_in])[0][1]
 
     # Reddening - prior from config.yaml and reddening law from flint
     ebv_prior = list_to_ufloat(parameters['ebv'])
@@ -112,13 +112,13 @@ if __name__ == "__main__":
     ############################################################
     # Getting the lnlike set up and print initial result
     nc = parameters['n_coeffs']
-    params, parname = initial_parameters(parameters, theta1, theta2, ebv_prior)
+    params, parname = initial_parameters(parameters, theta1_in, theta2_in, ebv_prior)
 
     for pn, pv in zip(parname, params):
         print('{} = {}'.format(pn, pv))
 
     lnlike = lnprob(params, f2m, flux_ratios,
-                    theta1, theta2, spec1, spec2,
+                    theta1_in, theta2_in, spec1, spec2,
                     ebv_prior, redlaw, nc,
                     config_dict=parameters, frp_coeffs=coeffs,
                     verbose=True, debug=False)
@@ -127,13 +127,13 @@ if __name__ == "__main__":
     ############################################################
     # Nelder-Mead optimisation
     nll = lambda *args: -lnprob(*args)
-    args = (f2m, flux_ratios, theta1, theta2,
+    args = (f2m, flux_ratios, theta1_in, theta2_in,
             spec1, spec2, ebv_prior, redlaw, nc)
     soln = minimize(nll, params, args=args, method='Nelder-Mead')
 
     # Re-initialise log likelihood function with optimised solution
     lnlike = lnprob(soln.x, f2m, flux_ratios,
-                    theta1, theta2, spec1, spec2,
+                    theta1_in, theta2_in, spec1, spec2,
                     ebv_prior, redlaw, nc,
                     config_dict=parameters, frp_coeffs=coeffs,
                     verbose=True)

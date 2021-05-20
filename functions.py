@@ -71,7 +71,7 @@ def initial_parameters(config_dict, theta1, theta2, ebv_prior):
     return params, parname
 
 
-def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, nc, config_dict,
+def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_prior, redlaw, nc, config_dict,
            frp_coeffs=None, wmin=1000, wmax=300000, return_flux=False, blobs=False,
            debug=False, verbose=False):  # TODO: not really sure what thetas are doing here but hey
     """
@@ -81,8 +81,8 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
         teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
     :param flux2mag: Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
     :param lratios: Flux ratios and response functions (dictionary)
-    :param theta1: Angular diamater of primary star in mas
-    :param theta2: Angular diameter of secondary star in mas
+    :param theta1_in: Angular diamater of primary star in mas
+    :param theta2_in: Angular diameter of secondary star in mas
     :param spec1: Model spectrum of primary star (flint.ModelSpectrum object)
     :param spec2: Model spectrum of secondary star (flint.ModelSpectrum object)
     :param ebv_prior: Prior on E(B-V) as ufloat
@@ -219,10 +219,11 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
 
     # Angular diameter log likelihood
     # See http://mathworld.wolfram.com/BivariateNormalDistribution.html, equation (1)
-    rho = correlation_matrix([theta1, theta2])[0][1]
-    z = ((theta1 - theta1.n) ** 2 / theta1.s ** 2 -
-         2 * rho * (theta1 - theta1.n) * (theta2 - theta2.n) / theta1.s / theta2.s +
-         (theta2 - theta2.n) ** 2 / theta2.s ** 2)  # TODO: these thetas shouldn't be the same surely
+    print(theta1, theta2)
+    rho = correlation_matrix([theta1_in, theta2_in])[0][1]
+    z = ((theta1 - theta1_in.n) ** 2 / theta1_in.s ** 2 -
+         2 * rho * (theta1 - theta1_in.n) * (theta2 - theta2_in.n) / theta1_in.s / theta2_in.s +
+         (theta2 - theta2_in.n) ** 2 / theta2_in.s ** 2)
     lnlike_theta = -0.5 * z / (1 - rho ** 2)
 
     # Combine log likelihoods calculated so far
