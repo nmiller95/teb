@@ -180,7 +180,7 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
     if config_dict['apply_colors']:
         chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)  # Ignore warning, pycharm is being fussy
     else:
-        chisq, lnlike_m = flux2mag(wave, flux, sigma_ext)
+        chisq, lnlike_m, _ = flux2mag(wave, flux, sigma_ext)  # TODO: fix this bodge
 
     if verbose:
         print('Magnitudes')
@@ -222,7 +222,7 @@ def lnprob(params, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, r
     rho = correlation_matrix([theta1, theta2])[0][1]
     z = ((theta1 - theta1.n) ** 2 / theta1.s ** 2 -
          2 * rho * (theta1 - theta1.n) * (theta2 - theta2.n) / theta1.s / theta2.s +
-         (theta2 - theta2.n) ** 2 / theta2.s ** 2)
+         (theta2 - theta2.n) ** 2 / theta2.s ** 2)  # TODO: these thetas shouldn't be the same surely
     lnlike_theta = -0.5 * z / (1 - rho ** 2)
 
     # Combine log likelihoods calculated so far

@@ -7,7 +7,7 @@ distortion: 1             # 0 = no distortion applied, 1 = single distortion fun
                           # 2 = each star's SED distorted separately.
 n_coeffs: 10              # Number of distortion coefficients to use. Use 0 for a simple SED fit.
 apply_ebv_prior: True     # Whether to apply the E(B-V) prior specified below
-apply_fratio_prior: True  # Whether to apply the NIR flux ratio priors
+apply_fratio_prior: False  # Whether to apply the NIR flux ratio priors
 apply_colors: False       # Whether to include colors data
 sigma_ext: 0.008          # External noise
 sigma_l: 0.01             # Flux ratios

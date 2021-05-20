@@ -310,7 +310,7 @@ class Flux2mag:
             wt = 1 / (z.s ** 2 + sig_ext ** 2)
             chisq += z.n ** 2 * wt
             lnlike_m += -0.5 * (z.n ** 2 * wt - np.log(wt))
-        if self.colors_data:
+        if self.syn_col:
             for k, v in zip(self.syn_col.keys(), self.syn_col.values()):
                 z = self.obs_col[k] - self.syn_col[k]
                 wt = 1 / (z.s ** 2 + sig_col ** 2)
