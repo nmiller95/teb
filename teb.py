@@ -15,14 +15,13 @@ import flint
 from synphot import ReddeningLaw
 import emcee
 import corner
-from multiprocessing import Pool
 import pickle
 from scipy.optimize import minimize
 from flux2mag import Flux2mag
 import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
 import yaml
-from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters
+from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, run_mcmc_simulations
 
 
 if __name__ == "__main__":
@@ -129,7 +128,12 @@ if __name__ == "__main__":
     nll = lambda *args: -lnprob(*args)
     args = (f2m, flux_ratios, theta1_in, theta2_in,
             spec1, spec2, ebv_prior, redlaw, nc, parameters)
+    print("Finding initial solution with Nelder-Mead optimisation...")
     soln = minimize(nll, params, args=args, method='Nelder-Mead')
+
+    # Print solutions
+    for pn, pv in zip(parname, soln.x):
+        print('{} = {}'.format(pn, pv))
 
     # Re-initialise log likelihood function with optimised solution
     lnlike = lnprob(soln.x, f2m, flux_ratios,
@@ -137,3 +141,57 @@ if __name__ == "__main__":
                     ebv_prior, redlaw, nc,
                     config_dict=parameters, frp_coeffs=coeffs,
                     verbose=True)
+    # Print solutions
+    print('Final log-likelihood = {:0.2f}'.format(lnlike))
+
+    # Run MCMC simulations
+    print("Running MCMC simulations...")
+    n_steps, n_walkers = (10, 256)  # TODO: put these in config file
+    sampler = run_mcmc_simulations(args, parameters, soln, n_steps=n_steps, n_walkers=n_walkers)
+
+    # Retrieve output from sampler and print key attributes
+    af = sampler.acceptance_fraction
+    print(f'Median acceptance fraction = {np.median(af)}')
+    best_index = np.unravel_index(np.argmax(sampler.lnprobability), (n_walkers, n_steps))
+    best_lnlike = np.max(sampler.lnprobability)
+    print(f'Best log(likelihood) = {best_lnlike} in walker {best_index[0]} at step {best_index[1]}')
+    best_pars = sampler.chain[best_index[0], best_index[1], :]
+
+    samples = sampler.get_chain()
+    flat_samples = sampler.get_chain(discard=n_steps // 2, thin=8, flat=True)
+
+    # TODO: stick this all in a function
+    show_plots = True
+    if show_plots:
+        # Convergence of chains...
+        fig, axes = plt.subplots(4, figsize=(10, 7), sharex='col')
+        i0 = 0
+        labels = parname[i0:i0 + 4]
+        for i in range(4):
+            ax = axes[i]
+            ax.plot(samples[:, :, i0 + i], "k", alpha=0.3)
+            ax.set_xlim(0, len(samples))
+            ax.set_ylabel(labels[i])
+            ax.yaxis.set_label_coords(-0.1, 0.5)
+        axes[-1].set_xlabel("Step number")
+        plt.show()
+        # Corner plot for all free parameters  # TODO: option for excluding the coeffs
+        fig = corner.corner(flat_samples, labels=parname)
+        plt.show()
+
+    # TODO: also stick this in a function
+    for i, pn in enumerate(parname):
+        val = flat_samples[:, i].mean()
+        err = flat_samples[:, i].std()
+        ndp = 1 - min(0, np.floor((np.log10(err))))
+        fmt = '{{:0.{:0.0f}f}}'.format(ndp)
+        vstr = fmt.format(val)
+        estr = fmt.format(err)
+        print('{} = {} +/- {}'.format(pn, vstr, estr))
+
+    lnlike = lnprob(best_pars, f2m, flux_ratios,
+                    theta1_in, theta2_in, spec1, spec2,
+                    ebv_prior, redlaw, nc,
+                    config_dict=parameters, frp_coeffs=coeffs,
+                    verbose=True)
+    print('Final log-likelihood = {:0.2f}'.format(lnlike))

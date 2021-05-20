@@ -6,6 +6,8 @@ from scipy.special import legendre
 from scipy.integrate import simps
 import flux_ratio_priors as frp
 import yaml
+import emcee
+from multiprocessing import Pool
 
 
 def list_to_ufloat(two_item_list):
@@ -279,3 +281,31 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
             return lnlike + lnprior
     else:
         return -np.inf
+
+
+def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps=1000, n_walkers=256):
+    """
+    Runs MCMC via the emcee module, using the least squares solution as a starting point
+    :param arguments: Starting values as list
+    :param config_dict: Dictionary of configuration parameters from config.yaml
+    :param least_squares_solution: Output of scipy.minimize
+    :param n_steps: Number of MCMC simulations to perform. Default = 1000.
+    :param n_walkers: Number of walkers to use. Default = 256.
+    :return: emcee.sampler object
+    """
+    nc = config_dict['n_coeffs']
+    steps = [25, 25,  # T_eff,1, T_eff,2 # WAS 25, 25
+             0.0006, 0.0004,  # theta_1 ,theta_2 # WAS 0.0005, 0.0007  # TODO: attach these to theta1.s and theta2.s
+             0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
+             *[0.01] * nc, *[0.01] * nc]  # c_1,1 ..   c_2,1 ..
+
+    ndim = len(least_squares_solution.x)
+    pos = np.zeros([n_walkers, ndim])
+    for i, x in enumerate(least_squares_solution.x):
+        pos[:, i] = x + steps[i] * np.random.randn(n_walkers)
+
+    with Pool() as pool:
+        sampler = emcee.EnsembleSampler(n_walkers, ndim, lnprob, args=arguments, pool=pool)
+        sampler.run_mcmc(pos, n_steps, progress=True)
+
+    return sampler
