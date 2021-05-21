@@ -39,7 +39,7 @@ class ModelSpectrum(SourceSpectrum):
         # Rough code to replace this stuff with
         #
         # import pyvo as vo
-        # service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl-cifist&")
+        # service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
         # service.search(teff=5000)
         # t = service.search()
         # filter = t['teff'] == 5000 & t['logg'] == 3.5  # can handle +/- 100K and +/- 0.5 dex. meta & alpha are 0.0
@@ -58,11 +58,12 @@ class ModelSpectrum(SourceSpectrum):
         fits_file_0 = join(cls.cache_path, _f)
         if binning is None:
             fits_file = fits_file_0
-        else:
+        else:  # Makes new pathname for a new file that's been binned up
             ffmt = "{}.BT-Settl.{}_{:04d}.fits"
             fits_file = join(cls.cache_path, ffmt.format(tag, version,
                                                          int(binning)))
 
+        # If file exists (i.e. already downloaded and binned) and you don't want to re-download it, simples!
         if os.path.isfile(fits_file) and not reload:
             return SourceSpectrum.from_file(fits_file)
 
