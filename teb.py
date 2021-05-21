@@ -5,7 +5,7 @@ TODO Look into how best to get this working: command line based or something to 
 """
 import numpy as np
 from matplotlib import pylab as plt
-from uncertainties import ufloat, covariance_matrix, correlation_matrix
+# from uncertainties import ufloat, covariance_matrix, correlation_matrix
 import flint
 from synphot import ReddeningLaw
 import corner
@@ -47,8 +47,8 @@ if __name__ == "__main__":
 
     # Angular diameters
     theta1_in, theta2_in = angular_diameters(parameters)
-    theta_cov = covariance_matrix([theta1_in, theta2_in])[0][1]
-    theta_cor = correlation_matrix([theta1_in, theta2_in])[0][1]
+    # theta_cov = covariance_matrix([theta1_in, theta2_in])[0][1]
+    # theta_cor = correlation_matrix([theta1_in, theta2_in])[0][1]
 
     # Reddening - prior from config.yaml and reddening law from flint
     ebv_prior = list_to_ufloat(parameters['ebv'])
@@ -102,6 +102,7 @@ if __name__ == "__main__":
     # Print solutions
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
+    ############################################################
     # Run MCMC simulations
     print("Running MCMC simulations...")
     n_steps, n_walkers = (parameters['mcmc_n_steps'], parameters['mcmc_n_walkers'])
@@ -142,4 +143,6 @@ if __name__ == "__main__":
                     config_dict=parameters, frp_coeffs=coeffs,
                     verbose=True)
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
+
+    ############################################################
     # TODO: save sampler to a stable file (ideally not pickle; that broke the AI Phe runs).

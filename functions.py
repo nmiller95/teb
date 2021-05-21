@@ -376,4 +376,3 @@ def convergence_plot(samples, parameter_names):
         ax.yaxis.set_label_coords(-0.1, 0.5)
     axes[-1].set_xlabel("Step number")
     plt.show()
-
