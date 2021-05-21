@@ -2,66 +2,24 @@
 Main file for running all this nonsense
 Module will eventually be named teb (temperatures of eclipsing binaries)
 TODO Look into how best to get this working: command line based or something to read into scripts?
-TODO: fix flint's model load breakages
 """
 import numpy as np
 from matplotlib import pylab as plt
-from astropy.table import Table
-from scipy.integrate import simps
 from uncertainties import ufloat, covariance_matrix, correlation_matrix
-from uncertainties.umath import log10 as ulog10
-from scipy.interpolate import interp1d
 import flint
 from synphot import ReddeningLaw
-import emcee
 import corner
-import pickle
 from scipy.optimize import minimize
 from flux2mag import Flux2mag
 import flux_ratio_priors as frp
-from flux_ratios import FluxRatio
 import yaml
-from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, run_mcmc_simulations
+from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
+    run_mcmc_simulations, load_photometry, convergence_plot
 
 
 if __name__ == "__main__":
-    # TODO: stick some of this photometry stuff in flux_ratios.py or functions.py
-    # Load and initialise photometric data from photometry_data.yaml
-    stream = open('config/photometry_data.yaml', 'r')
-    photometry = yaml.safe_load(stream)
-    # Flux ratios - initialised with FluxRatio from flux_ratios.py
-    try:
-        flux_ratios = dict()
-        for f in photometry['flux_ratios']:
-            fr = FluxRatio(f['tag'], f['type'], f['value'][0], f['value'][1])
-            tag, d = fr()
-            flux_ratios[tag] = d
-    except KeyError:
-        print("No flux ratios provided in photometry_data.yaml")
-        flux_ratios = None
-    # Extra magnitudes - read wavelength and response read from specified file
-    try:
-        for e in photometry['extra_data']:
-            e['mag'] = list_to_ufloat(e['mag'])
-            e['zp'] = list_to_ufloat(e['zp'])
-            try:
-                t = Table.read(e['file'], format='ascii')
-                e['wave'] = np.array(t['col1'])
-                e['resp'] = np.array(t['col2'])
-            except OSError:
-                raise SystemExit(f"Unable to read {e['file']}.")
-        extra_data = photometry['extra_data']
-    except KeyError:
-        print("No additional magnitudes provided in photometry_data.yaml")
-        extra_data = None
-    # Colors - simple conversion from list to ufloat
-    try:
-        for c in photometry['colors_data']:
-            c['color'] = list_to_ufloat(c['color'])
-        colors_data = photometry['colors_data']
-    except KeyError:
-        print("No colours provided in photometry_data.yaml")
-        colors_data = None
+    # Load photometry data from photometry.yaml
+    flux_ratios, extra_data, colors_data = load_photometry()
 
     ############################################################
     # Load basic, custom and model parameters from config.yaml
@@ -75,7 +33,7 @@ if __name__ == "__main__":
         raise SystemExit("Star name not resolved by SIMBAD")
 
     # Flux ratio prior calculation with methods from flux_ratio_priors.py
-    if parameters['apply_fratio_prior']:  # TODO: change this stuff to logging rather than print to screen?
+    if parameters['apply_fratio_prior']:
         print('Configuring flux ratio prior settings...')
         tref1, tref2, tab1, tab2, method, fratio, teff1, teff2 = frp.configure()
         print('Fitting V-K vs. Teff for specified subset of stars...')
@@ -146,7 +104,7 @@ if __name__ == "__main__":
 
     # Run MCMC simulations
     print("Running MCMC simulations...")
-    n_steps, n_walkers = (10, 256)  # TODO: put these in config file
+    n_steps, n_walkers = (parameters['mcmc_n_steps'], parameters['mcmc_n_walkers'])
     sampler = run_mcmc_simulations(args, parameters, soln, n_steps=n_steps, n_walkers=n_walkers)
 
     # Retrieve output from sampler and print key attributes
@@ -160,22 +118,11 @@ if __name__ == "__main__":
     samples = sampler.get_chain()
     flat_samples = sampler.get_chain(discard=n_steps // 2, thin=8, flat=True)
 
-    # TODO: stick this all in a function
-    show_plots = True
+    show_plots = parameters['show_plots']
     if show_plots:
         # Convergence of chains...
-        fig, axes = plt.subplots(4, figsize=(10, 7), sharex='col')
-        i0 = 0
-        labels = parname[i0:i0 + 4]
-        for i in range(4):
-            ax = axes[i]
-            ax.plot(samples[:, :, i0 + i], "k", alpha=0.3)
-            ax.set_xlim(0, len(samples))
-            ax.set_ylabel(labels[i])
-            ax.yaxis.set_label_coords(-0.1, 0.5)
-        axes[-1].set_xlabel("Step number")
-        plt.show()
-        # Corner plot for all free parameters  # TODO: option for excluding the coeffs
+        convergence_plot(samples, parname)
+        # Corner plot for all free parameters
         fig = corner.corner(flat_samples, labels=parname)
         plt.show()
 
@@ -190,8 +137,9 @@ if __name__ == "__main__":
         print('{} = {} +/- {}'.format(pn, vstr, estr))
 
     lnlike = lnprob(best_pars, f2m, flux_ratios,
-                    theta1_in, theta2_in, spec1, spec2,
+                    theta1_in, theta2_in, spec1, spec2,  # TODO: this should print *output* theta
                     ebv_prior, redlaw, nc,
                     config_dict=parameters, frp_coeffs=coeffs,
                     verbose=True)
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
+    # TODO: save sampler to a stable file (ideally not pickle; that broke the AI Phe runs).

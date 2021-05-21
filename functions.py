@@ -8,11 +8,58 @@ import flux_ratio_priors as frp
 import yaml
 import emcee
 from multiprocessing import Pool
+from flux_ratios import FluxRatio
+from astropy.table import Table
+from matplotlib import pyplot as plt
 
 
 def list_to_ufloat(two_item_list):
     """Turns a two item list from yaml input into a ufloat"""
     return ufloat(two_item_list[0], two_item_list[1])
+
+
+def load_photometry():
+    """
+    Reads photometry inputs from photometry.yaml and prepares them for the method
+    :return: flux ratios, extra data, colors data as dictionaries
+    """
+    # Load and initialise photometric data from photometry_data.yaml
+    stream = open('config/photometry_data.yaml', 'r')
+    photometry = yaml.safe_load(stream)
+    # Flux ratios - initialised with FluxRatio from flux_ratios.py
+    try:
+        flux_ratios = dict()
+        for f in photometry['flux_ratios']:
+            fr = FluxRatio(f['tag'], f['type'], f['value'][0], f['value'][1])
+            tag, d = fr()
+            flux_ratios[tag] = d
+    except KeyError:
+        print("No flux ratios provided in photometry_data.yaml")
+        flux_ratios = None
+    # Extra magnitudes - read wavelength and response read from specified file
+    try:
+        for e in photometry['extra_data']:
+            e['mag'] = list_to_ufloat(e['mag'])
+            e['zp'] = list_to_ufloat(e['zp'])
+            try:
+                t = Table.read(e['file'], format='ascii')
+                e['wave'] = np.array(t['col1'])
+                e['resp'] = np.array(t['col2'])
+            except OSError:
+                raise SystemExit(f"Unable to read {e['file']}.")
+        extra_data = photometry['extra_data']
+    except KeyError:
+        print("No additional magnitudes provided in photometry_data.yaml")
+        extra_data = None
+    # Colors - simple conversion from list to ufloat
+    try:
+        for c in photometry['colors_data']:
+            c['color'] = list_to_ufloat(c['color'])
+        colors_data = photometry['colors_data']
+    except KeyError:
+        print("No colours provided in photometry_data.yaml")
+        colors_data = None
+    return flux_ratios, extra_data, colors_data
 
 
 def angular_diameters(config_dict):
@@ -309,3 +356,24 @@ def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps
         sampler.run_mcmc(pos, n_steps, progress=True)
 
     return sampler
+
+
+# TODO: all plots: make nicer (stylesheet) and include some customisation options
+def convergence_plot(samples, parameter_names):
+    """
+    Generates plots to show convergence of the temperatures and angular diameters
+    :param samples: samples object from emcee.sampler.get_chain()
+    :param parameter_names: List of the parameter names
+    :return: Convergence plot
+    """
+    fig, axes = plt.subplots(4, figsize=(10, 7), sharex='col')
+    i0 = 0
+    labels = parameter_names[i0:i0 + 4]
+    for i in range(4):
+        ax = axes[i]
+        ax.plot(samples[:, :, i0 + i], "k", alpha=0.3)
+        ax.set(xlim=(0, len(samples)), ylabel=labels[i])
+        ax.yaxis.set_label_coords(-0.1, 0.5)
+    axes[-1].set_xlabel("Step number")
+    plt.show()
+
