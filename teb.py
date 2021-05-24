@@ -13,6 +13,7 @@ from scipy.optimize import minimize
 from flux2mag import Flux2mag
 import flux_ratio_priors as frp
 import yaml
+import _pickle as pickle  # cPickle is faster than pickle
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
     run_mcmc_simulations, load_photometry, convergence_plot
 
@@ -145,4 +146,7 @@ if __name__ == "__main__":
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
     ############################################################
-    # TODO: save sampler to a stable file (ideally not pickle; that broke the AI Phe runs).
+    # TODO: check this is stable i.e. what went wrong with reading in the AI Phe ones.
+    f_name = f"{parameters['run_id']}_{parameters['name']}_{tref1}_{tref2}_{m_h}_{aFe}_{binning}_bins.pkl"
+    with f_name as output:
+        pickle.dump(sampler, output, pickle.HIGHEST_PROTOCOL)
