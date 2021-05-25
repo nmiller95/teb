@@ -36,20 +36,19 @@ class ModelSpectrum(SourceSpectrum):
                         version='CIFIST2011_2015'):
 
         ############################################################
-        # Rough code to replace this stuff with
-        #
-        # import pyvo as vo
-        # service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
-        # service.search(teff=5000)
-        # t = service.search()
-        # filter = t['teff'] == 5000 & t['logg'] == 3.5  # can handle +/- 100K and +/- 0.5 dex. meta & alpha are 0.0
-        # url = t[filter]['Spectrum']  # might not be string; check this
-        #
-        # Coelho hires (not the one we want actually)
-        # service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_highres&")
-        # be careful with heading types; here they are teff, logg, meta, afe, Spectrum
-        #
-        # Need URL for the Coelho SED version, this has wider wavelength range but lower wavelength resolution
+        # very very rough example
+        import pyvo as vo
+        service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
+        s = service.search()
+        s = s.to_table()
+        cond_teff = s['teff'] == 6400
+        cond_logg = s['logg'] == 4.5
+        cond_meta = s['meta'] == 0.0
+        cond_alpha = s['alpha'] == 0.0
+        s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
+        url = (s[0]['Spectrum']).decode("utf-8")
+        url += '&format=ascii'
+        Table.read(url, format='ascii.fast_no_header')
         ############################################################
 
         subdir = {'CIFIST2011_2015': 'CIFIST2011'}
