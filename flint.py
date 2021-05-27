@@ -17,12 +17,17 @@ __all__ = ['SpectralEnergyDistribution', 'ModelSpectrum', 'Bandpass',
            'DistortionPolynomial']
 
 
-def load_spectrum_as_table(s, params):
+def load_spectrum_as_table(s, params, source):
     teff, logg, m_h, afe = params
     cond_teff = s['teff'] == teff
     cond_logg = s['logg'] == logg
     cond_meta = s['meta'] == m_h
-    cond_alpha = s['alpha'] == afe
+    if source == 'bt-settl':
+        cond_alpha = s['alpha'] == afe
+    elif source == 'coelho-sed':
+        cond_alpha = s['afe'] == afe
+    else:
+        raise NameError('model not supported')
     s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
     try:
         url = (s[0]['Spectrum']).decode("utf-8")
@@ -32,13 +37,13 @@ def load_spectrum_as_table(s, params):
     return Table.read(url, format='ascii.fast_no_header')
 
 
-def model_interpolate_teff(s, teff, logg, m_h, afe):
+def model_interpolate_teff(s, teff, logg, m_h, afe, source):
     upper_teff = ceil(teff / 100) * 100
     lower_teff = floor(teff / 100) * 100
     upper_params = (upper_teff, logg, m_h, afe)
     lower_params = (lower_teff, logg, m_h, afe)
-    upper_model = load_spectrum_as_table(s, upper_params)
-    lower_model = load_spectrum_as_table(s, lower_params)
+    upper_model = load_spectrum_as_table(s, upper_params, source)
+    lower_model = load_spectrum_as_table(s, lower_params, source)
     wave = upper_model['col1']
     flux = ((teff-lower_teff)/100)*upper_model['col2'] + ((upper_teff-teff)/100)*lower_model['col2']
     return wave, flux
@@ -62,26 +67,26 @@ class ModelSpectrum(SourceSpectrum):
         if source == 'bt-settl':
             service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
         elif source == 'coelho':
-            service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
+            service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&")
         else:
             raise ValueError(source, "Invalid source of models specified")
         # Read list of available models
         s = service.search()
         s = s.to_table()
         if teff % 100:  # Temperature not in list: load 2 nearest and interpolate
-            wave, flux = model_interpolate_teff(s, teff, logg, m_h, afe)
+            wave, flux = model_interpolate_teff(s, teff, logg, m_h, afe, source)
         else:
             params = (teff, logg, m_h, afe)
-            model = load_spectrum_as_table(s, params)
+            model = load_spectrum_as_table(s, params, source)
             wave = model['col1']
             flux = model['col2']
 
         ############################################################
 
         subdir = {'CIFIST2011_2015': 'CIFIST2011'}
-        tag = cls.make_tag(teff, logg, m_h, afe)
-        _f = "{}.BT-Settl.{}.fits".format(tag, version)
-        fits_file_0 = join(cls.cache_path, _f)
+        tag = cls.make_tag(teff, logg, m_h, afe, source)
+        # _f = "{}.BT-Settl.{}.fits".format(tag, version)
+        # fits_file_0 = join(cls.cache_path, _f)
         if binning is None:
             fits_file = fits_file_0
         else:  # Makes new pathname for a new file that's been binned up
