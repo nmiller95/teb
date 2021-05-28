@@ -113,8 +113,7 @@ class ModelSpectrum(SourceSpectrum):
         os.mkdir(cache_path)
 
     @classmethod
-    def from_parameters(cls, teff, logg, m_h=0, afe=0, binning=10, reload=False,
-                        source='bt-settl'):
+    def from_parameters(cls, teff, logg, m_h=0, afe=0, binning=10, reload=False, source='bt-settl'):
         params = (teff, logg, m_h, afe)
 
         ############################################################
@@ -124,38 +123,37 @@ class ModelSpectrum(SourceSpectrum):
         model_file_0 = join(cls.cache_path, _f)
         if binning is None:
             model_file = model_file_0
-        else:  # Makes new pathname for a new file that's been binned up
-            ffmt = "{}.{}_{:04d}.fits"
+        else:  # Gets pathname for file that's been binned up
+            ffmt = "{}.{}_{:04d}.dat"
             model_file = join(cls.cache_path, ffmt.format(tag, source, int(binning)))
 
         # If file exists (i.e. already downloaded and binned) and you don't want to re-download it, simples!
         if os.path.isfile(model_file) and not reload:
+            print(model_file)
             return SourceSpectrum.from_file(model_file)
 
         if binning is not None and os.path.isfile(model_file_0) and not reload:
-            t = Table.read(model_file_0)
-
-        ############################################################
-
-        if source == 'bt-settl':
-            service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
-        elif source == 'coelho':
-            service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&")
+            model = Table.read(model_file_0, format='ascii')
         else:
-            raise ValueError(source, "Invalid source of models specified")
-        # Read list of available models
-        s = service.search()
-        s = s.to_table()
-        # Find and load model; interpolate if necessary
-        if source == 'coelho-sed':
-            try:
-                model = load_spectrum_as_table(s, params, source)
-            except FileNotFoundError:
+            if source == 'bt-settl':
+                service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
+            elif source == 'coelho':
+                service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&")
+            else:
+                raise ValueError(source, "Invalid source of models specified")
+            # Read list of available models
+            s = service.search()
+            s = s.to_table()
+            # Find and load model; interpolate if necessary
+            if source == 'coelho-sed':
+                try:
+                    model = load_spectrum_as_table(s, params, source)
+                except FileNotFoundError:
+                    model = model_interpolate_teff(s, params, source)
+            elif source == 'bt-settl' and teff % 100:
                 model = model_interpolate_teff(s, params, source)
-        elif source == 'bt-settl' and teff % 100:
-            model = model_interpolate_teff(s, params, source)
-        else:
-            model = load_spectrum_as_table(s, params, source)
+            else:
+                model = load_spectrum_as_table(s, params, source)
 
         model.sort('wave')
         model_g = model.group_by('wave')
@@ -164,14 +162,15 @@ class ModelSpectrum(SourceSpectrum):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UnitsWarning)
             if not os.path.isfile(model_file_0):
-                model.write(model_file_0)
+                model.write(model_file_0, format='ascii')
             if os.path.isfile(model_file_0) and reload:
-                model.write(model_file_0, overwrite=True)
+                model.write(model_file_0, format='ascii', overwrite=True)
             if binning is not None:
                 model.add_column(model['wave'] // int(binning), name='bin')
                 model_b = model.group_by('bin')
                 model = model_b.groups.aggregate(np.mean)
-            model.write(model_file, overwrite=reload)
+            model.write(model_file, format='ascii', overwrite=reload)
+        print(model_file)
         return SourceSpectrum.from_file(model_file)
 
 
