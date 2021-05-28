@@ -63,9 +63,11 @@ if __name__ == "__main__":
     m_h = parameters['m_h']
     aFe = parameters['aFe']
 
-    # Total bodge. TODO: this, properly
-    spec1 = flint.ModelSpectrum.from_parameters(6300, 4.0, binning=binning, reload=False)
+    # Load models
+    spec1 = flint.ModelSpectrum.from_parameters(6350, 4.0, binning=binning, reload=False)
     spec2 = flint.ModelSpectrum.from_parameters(6200, 4.0, binning=binning, reload=False)
+    print('success!')
+    breakpoint()
 
     ############################################################
     # Getting the lnlike set up and print initial result
