@@ -48,8 +48,6 @@ if __name__ == "__main__":
 
     # Angular diameters
     theta1_in, theta2_in = angular_diameters(parameters)
-    # theta_cov = covariance_matrix([theta1_in, theta2_in])[0][1]
-    # theta_cor = correlation_matrix([theta1_in, theta2_in])[0][1]
 
     # Reddening - prior from config.yaml and reddening law from flint
     ebv_prior = list_to_ufloat(parameters['ebv'])
@@ -59,7 +57,7 @@ if __name__ == "__main__":
     # Loading models (interpolating if required)
     model_library = parameters['model_sed']
     binning = parameters['binning']
-    tref1, tref2 = parameters['tref1'], parameters['tref2']
+    teff1, teff2 = parameters['teff1'], parameters['teff2']
     logg1, logg2 = parameters['logg1'], parameters['logg2']
     if logg1 % 0.5 or logg2 % 0.5:
         raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
@@ -71,10 +69,8 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Invalid model SED library specified: {model_library}")
 
-    spec1 = ModelSpectrum.from_parameters(tref1, logg1, m_h, aFe, binning=binning, reload=False, source=model_library)
-    spec2 = ModelSpectrum.from_parameters(tref2, logg2, m_h, aFe, binning=binning, reload=False, source=model_library)
-    print('success!')
-    breakpoint()
+    spec1 = ModelSpectrum.from_parameters(teff1, logg1, m_h, aFe, binning=binning, reload=False, source=model_library)
+    spec2 = ModelSpectrum.from_parameters(teff2, logg2, m_h, aFe, binning=binning, reload=False, source=model_library)
 
     ############################################################
     # Getting the lnlike set up and print initial result
@@ -155,7 +151,6 @@ if __name__ == "__main__":
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
     ############################################################
-    # TODO: check this is stable i.e. what went wrong with reading in the AI Phe ones.
-    f_name = f"{parameters['run_id']}_{parameters['name']}_{tref1}_{tref2}_{m_h}_{aFe}_{binning}_bins.pkl"
-    with f_name as output:
-        pickle.dump(sampler, output, pickle.HIGHEST_PROTOCOL)
+    f_name = f"output/{parameters['run_id']}_{parameters['name']}_{tref1}_{tref2}_{m_h}_{aFe}A_{binning}_bins.pkl"
+    with open(f_name, 'wb') as output:
+        pickle.dump(sampler, output)
