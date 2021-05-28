@@ -7,7 +7,7 @@ distortion: 1             # 0 = no distortion applied, 1 = single distortion fun
                           # 2 = each star's SED distorted separately.
 n_coeffs: 10              # Number of distortion coefficients to use. Use 0 for a simple SED fit.
 apply_ebv_prior: True     # Whether to apply the E(B-V) prior specified below
-apply_fratio_prior: False  # Whether to apply the NIR flux ratio priors
+apply_fratio_prior: True  # Whether to apply the NIR flux ratio priors
 apply_colors: False       # Whether to include colors data
 sigma_ext: 0.008          # External noise
 sigma_l: 0.01             # Flux ratios
@@ -44,8 +44,7 @@ ebv:
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed
 model_sed: coelho-sed     # Which model SEDs to use. Libraries supported: bt-settl, coelho-sed
 binning: 50   # Wavelength resolution to use, in Angstroms.
-tref1: 6400   # Effective temperature for primary star, in K
-tref2: 6300   # Effective temperature for secondary star, in Kl
+# The code will use teff1, teff2 and interpolate the models.
 logg1: 4.0    # Surface gravity for primary star, in cgs. Only increments of 0.5 currently supported.
 logg2: 4.0    # Surface gravity for secondary star, in cgs. Only increments of 0.5 currently supported.
 # If model_sed == bt-settl, if these != 0 they will be automatically overwritten as 0
