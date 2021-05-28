@@ -6,7 +6,7 @@ TODO Look into how best to get this working: command line based or something to 
 import numpy as np
 from matplotlib import pylab as plt
 # from uncertainties import ufloat, covariance_matrix, correlation_matrix
-import flint
+from flint import ModelSpectrum
 from synphot import ReddeningLaw
 import corner
 from scipy.optimize import minimize
@@ -57,15 +57,22 @@ if __name__ == "__main__":
 
     ############################################################
     # Loading models (interpolating if required)
+    model_library = parameters['model_sed']
     binning = parameters['binning']
-    tref1 = parameters['tref1']
-    tref2 = parameters['tref2']
-    m_h = parameters['m_h']
-    aFe = parameters['aFe']
+    tref1, tref2 = parameters['tref1'], parameters['tref2']
+    logg1, logg2 = parameters['logg1'], parameters['logg2']
+    if logg1 % 0.5 or logg2 % 0.5:
+        raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
+    if model_library == 'bt-settl':
+        m_h, aFe = (0.0, 0.0)
+    elif model_library == 'coelho-sed':
+        m_h = parameters['m_h']
+        aFe = parameters['aFe']
+    else:
+        raise ValueError(f"Invalid model SED library specified: {model_library}")
 
-    # Load models
-    spec1 = flint.ModelSpectrum.from_parameters(6254, 4.0, binning=binning, reload=False, source='coelho-sed')
-    spec2 = flint.ModelSpectrum.from_parameters(6500, 4.0, binning=binning, reload=False, source='coelho-sed')
+    spec1 = ModelSpectrum.from_parameters(tref1, logg1, m_h, aFe, binning=binning, reload=False, source=model_library)
+    spec2 = ModelSpectrum.from_parameters(tref2, logg2, m_h, aFe, binning=binning, reload=False, source=model_library)
     print('success!')
     breakpoint()
 

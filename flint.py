@@ -70,7 +70,7 @@ def load_spectrum_as_table(s, params, source):
     try:
         url = (s[0]['Spectrum']).decode("utf-8")
     except IndexError:
-        raise FileNotFoundError("Spectrum with specified parameters not found")
+        raise FileNotFoundError("Spectrum with specified parameters not found. Check [M/H] and [a/Fe]")
     url += '&format=ascii'
     return Table.read(url, format='ascii.fast_no_header', names=('wave', 'flux'))
 

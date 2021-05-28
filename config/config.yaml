@@ -37,11 +37,17 @@ ebv:
   - 0.00119
 
 # Starting values of stellar models to use as basis for integrating function
-model_sed: Coelho_SED     # Which model SEDs to use. Soon to be supported are:
-                          # - Coelho_SED. Wide wavelength range 130nm - 100micron.
-                          # - BT_Settl_CIFIST. Entire wavelength range. Only supports M/H = 0.
+# NB: not all teff-logg combinations supported by all model catalogs. Check URL for full coverage info.
+# BT-Settl: full wavelength range, detailed logg-teff coverage BUT only supports M/H = 0
+# http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl
+# Coelho SED: limited wavelength range 130nm - 100micron and sparser teff-logg coverage.
+# http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed
+model_sed: coelho-sed     # Which model SEDs to use. Libraries supported: bt-settl, coelho-sed
 binning: 50   # Wavelength resolution to use, in Angstroms.
 tref1: 6400   # Effective temperature for primary star, in K
-tref2: 6300   # Effective temperature for secondary star, in K
-m_h: -0.1     # Metallicity for both stars
-aFe: 0.0      # Alpha fraction for both stars
+tref2: 6300   # Effective temperature for secondary star, in Kl
+logg1: 4.0    # Surface gravity for primary star, in cgs. Only increments of 0.5 currently supported.
+logg2: 4.0    # Surface gravity for secondary star, in cgs. Only increments of 0.5 currently supported.
+# If model_sed == bt-settl, if these != 0 they will be automatically overwritten as 0
+m_h: -0.1     # Metallicity for both stars. (C) supports [0.2, 0.0, -0.1, -0.3, -0.5, -0.8, -1.0, -1.3]
+aFe: 0.4      # Alpha fraction for both stars. (C) supports [0.0, 0.4]
