@@ -27,23 +27,8 @@ extra_data:
       - -48.51
       - 0.024
     file: Response/SkyMapper_SkyMapper.v.dat  # Must be ascii. 2 columns: wave (in ngstrom) & response (normalised).
-# Colours. Stromgren b-y, m1, c1, and Gaia BP-RP currently supported. TODO: Option for custom colours
+# Colours. Stromgren b-y, m1, c1, and Gaia BP-RP currently supported.
 colors_data:
-  - tag: (b-y)
-    type: by
-    color:
-      - 0.431
-      - 0.0037
-  - tag: m1
-    type: m1
-    color:
-      - 0.209
-      - 0.0041
-  - tag: c1
-    type: c1
-    color:
-      - 0.356
-      - 0.0066
   - tag: BP-RP
     type: BPRP
     color:
