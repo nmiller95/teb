@@ -150,8 +150,7 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
             model.add_column(model['wave'] // int(binning), name='bin')
             model_b = model.group_by('bin')
             model = model_b.groups.aggregate(np.mean)
-            model.write(model_file, format='ascii', overwrite=reload)
-        return model
+            model.write(model_file, format='ascii', overwrite=True)
 
 
 class ModelSpectrum(SourceSpectrum):
@@ -176,7 +175,7 @@ class ModelSpectrum(SourceSpectrum):
         else:
             if source == 'bt-settl':
                 service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
-            elif source == 'coelho':
+            elif source == 'coelho-sed':
                 service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&")
             else:
                 raise ValueError(source, "Invalid source of models specified")
@@ -186,7 +185,7 @@ class ModelSpectrum(SourceSpectrum):
             # Find and load model; interpolate if necessary
             if valid_teff(s, params, source):
                 model = load_spectrum_as_table(s, params, source)
-                _ = process_spectrum(model, model_file, model_file_0, reload, binning)
+                process_spectrum(model, model_file, model_file_0, reload, binning)
             else:
                 upper, lower = nearest_teff_models(s, params)
                 t_diff = upper - lower

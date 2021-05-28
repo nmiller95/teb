@@ -64,8 +64,8 @@ if __name__ == "__main__":
     aFe = parameters['aFe']
 
     # Load models
-    spec1 = flint.ModelSpectrum.from_parameters(6350, 4.0, binning=binning, reload=False)
-    spec2 = flint.ModelSpectrum.from_parameters(6200, 4.0, binning=binning, reload=False)
+    spec1 = flint.ModelSpectrum.from_parameters(6254, 4.0, binning=binning, reload=False, source='coelho-sed')
+    spec2 = flint.ModelSpectrum.from_parameters(6500, 4.0, binning=binning, reload=False, source='coelho-sed')
     print('success!')
     breakpoint()
 
