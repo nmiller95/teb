@@ -293,8 +293,8 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         # Loads reference temperatures and method from frp configuration file
         stream = open('config/flux_ratio_priors.yaml', 'r')
         constraints = yaml.safe_load(stream)
-        tref1_frp = np.mean(np.array(constraints['Tref1']))
-        tref2_frp = np.mean(np.array(constraints['Tref2']))
+        tref1_frp = np.mean(np.array(constraints['tref1']))
+        tref2_frp = np.mean(np.array(constraints['tref2']))
         method = constraints['method']
         # Calculates flux ratio priors using synthetic flux ratio and temperatures just calculated
         frp_dict = frp.flux_ratio_priors(lV, teff1, teff2, tref1_frp, tref2_frp, frp_coeffs, method=method)

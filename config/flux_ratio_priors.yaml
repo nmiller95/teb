@@ -4,26 +4,29 @@
 # check by plotting V-K colour against catalog temperature.
 #TODO: Include option to restrict metallicity.
 #TODO: Include option for single fit for stars with similar parameters.
-E(B-V):  # Range of interstellar reddening to restrict reference star search by
+#
+# Linear (lin) or quadratic (quad) fit to the V-K vs. Teff diagram
+method: quad
+# Flux ratio of the binary, flux2/flux1
+flux_ratio: 1.03
+# Nominal temperature for the primary & secondary stars to use in initial flux ratio prior calculation
+teff1: 6300
+teff2: 6100
+# Range of interstellar reddening to restrict reference star search by
+E(B-V):
   - -1.0
   - 0.01
-logg1:  # Range of surface gravities to restrict reference star search by, for primary star
+# Range of surface gravities to restrict reference star search
+logg1:
   - 3.5
   - 4.5
-logg2:  # Range of surface gravities to restrict reference star search by, for secondary star
+logg2:
   - 3.8
   - 4.8
-Tref1:  # Range of temperatures to restrict reference star search by, for primary star
+# Range of temperatures to restrict reference star search by
+tref1:
   - 5400
   - 6600
-Tref2:  # Range of temperatures to restrict reference star search by, for secondary star
+tref2:
   - 5300
   - 6500
-method:  # Whether to use a linear 'lin' or quadratic 'quad' fit to the V-K vs. Teff diagram
-  - 'quad'
-flux_ratio:  # Flux ratio of the binary, flux2/flux1
-  - 1.03
-Teff1:  # Nominal temperature for the primary star to use in flux ratio prior calculation
-  - 6300
-Teff2:  # Nominal temperature for the secondary star to use in flux ratio prior calculation
-  - 6100
