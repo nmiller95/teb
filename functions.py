@@ -122,7 +122,7 @@ def initial_parameters(config_dict, theta1, theta2, ebv_prior):
 
 def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_prior, redlaw, nc, config_dict,
            frp_coeffs=None, wmin=1000, wmax=300000, return_flux=False, blobs=False,
-           debug=False, verbose=False):  # TODO: not really sure what thetas are doing here but hey
+           debug=False, verbose=False):
     """
     Log probability function for the fundamental effective temperature of eclipsing binary stars method.
 
@@ -130,8 +130,8 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
     :param flux2mag: Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
     :param lratios: Flux ratios and response functions (dictionary)
-    :param theta1_in: Angular diamater of primary star in mas
-    :param theta2_in: Angular diameter of secondary star in mas
+    :param theta1_in: Angular diamater of primary star in mas (initial value)
+    :param theta2_in: Angular diameter of secondary star in mas (initial value)
     :param spec1: Model spectrum of primary star (flint.ModelSpectrum object)
     :param spec2: Model spectrum of secondary star (flint.ModelSpectrum object)
     :param ebv_prior: Prior on E(B-V) as ufloat
@@ -341,8 +341,9 @@ def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps
     :return: emcee.sampler object
     """
     nc = config_dict['n_coeffs']
+    th1, th2 = angular_diameters(config_dict)
     steps = [25, 25,  # T_eff,1, T_eff,2 # WAS 25, 25
-             0.0006, 0.0004,  # theta_1 ,theta_2 # WAS 0.0005, 0.0007  # TODO: attach these to theta1.s and theta2.s
+             th1.s, th2.s,  # theta_1 ,theta_2
              0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
              *[0.01] * nc, *[0.01] * nc]  # c_1,1 ..   c_2,1 ..
 

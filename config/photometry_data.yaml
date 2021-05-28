@@ -44,3 +44,8 @@ colors_data:
     color:
       - 0.356
       - 0.0066
+  - tag: BP-RP
+    type: BPRP
+    color:
+      - 0.61822796
+      - 0.01498220

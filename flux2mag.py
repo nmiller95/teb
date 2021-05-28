@@ -154,7 +154,7 @@ class Flux2mag:
                         'b': 1.0300321185051395e-06,
                         'y': 7.412341517648064e-07
                     }
-                    # Zero point and error is average colour o-c offset and standard deviation TODO: Check this
+                    # Zero point and error is average colour o-c offset and standard deviation
                     if x['type'] == 'by':
                         x['zp'] = ufloat(-0.0014, 0.0045)
                     elif x['type'] == 'm1':
@@ -167,8 +167,16 @@ class Flux2mag:
                     x['vega_zp'] = stromgren_v
 
                 elif x['type'] == 'BPRP':
-                    # TODO: Gaia BP-RP colour
-                    pass
+                    names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
+                    t = Table.read('Response/GaiaEDR3_passbands.dat', names=names, format='ascii')
+                    gaia_w, gaia_r, gaia_v = {}, {}, {}
+                    for m in ('BP', 'RP'):
+                        gaia_w[m] = t['wave']*10
+                        gaia_r[m] = t[m]
+                    x['wave'] = gaia_w
+                    x['resp'] = gaia_r
+                    x['zp'] = ufloat(0.0083, 0.0021)
+                    x['vega_zp'] = gaia_v  # TODO: Gaia BP-RP vega thingy
 
             self.colors_data = colors_data
 
@@ -299,6 +307,19 @@ class Flux2mag:
                         uv_c = mag['u'] - mag['v']
                         vb_c = mag['v'] - mag['b']
                         syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
+                elif b == 'BPRP':
+                    zp = {'BP': ufloat(25.3540, 0.0023),
+                          'RP': ufloat(24.7627, 0.0016)}
+                    r = {}
+                    p_a = 0.7278
+                    hc9 = 1.986445824e-16  # 10^9 hc
+                    for m in ['BP', 'RP']:  # TODO check this is correct
+                        i = (x['resp'] < 99).nonzero()
+                        r[m] = interp1d(x['wave'][i], x['resp'][i], bounds_error=False, fill_value=0)
+                        photon_flux = p_a * simps(r[m](wave) * wave * f_lambda(wave) / 10000, wave) / hc9
+                        mag[m] = (-2.5 * np.log10(photon_flux) + zp[m]).n
+                    syn_col[b] = mag['BP'] - mag['RP']
+
             self.syn_col = syn_col
         else:
             self.syn_col = None
