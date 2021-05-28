@@ -152,7 +152,7 @@ class ModelSpectrum(SourceSpectrum):
     cache_path = join(dirname(abspath(__file__)), 'cache')
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
-    cache_path = join(cache_path, 'BT-Settl')
+    cache_path = join(cache_path, 'Models')
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
 
