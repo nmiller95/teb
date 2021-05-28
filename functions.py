@@ -229,7 +229,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     if config_dict['apply_colors']:
         chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)  # Ignore warning, pycharm is being fussy
     else:
-        chisq, lnlike_m, _ = flux2mag(wave, flux, sigma_ext)  # TODO: fix this bodge
+        chisq, lnlike_m = flux2mag(wave, flux, sigma_ext)
 
     if verbose:
         print('Magnitudes')
