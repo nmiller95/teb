@@ -1,7 +1,7 @@
 """
-Main file for running all this nonsense
-Module will eventually be named teb (temperatures of eclipsing binaries)
-TODO Look into how best to get this working: command line based or something to read into scripts?
+teb - a python tool for calculating fundamental effective [t]emperatures of [e]clipsing [b]inaries
+
+authors: nikki miller, pierre maxted (2021)
 """
 import numpy as np
 from matplotlib import pylab as plt
@@ -25,16 +25,16 @@ if __name__ == "__main__":
     ############################################################
     # Load basic, custom and model parameters from config.yaml
     stream = open('config/config.yaml', 'r')
-    parameters = yaml.safe_load(stream)
+    config_dict = yaml.safe_load(stream)
     # Create Flux2mag object from name and photometry data
     try:
-        name = parameters['name']
+        name = config_dict['name']
         f2m = Flux2mag(name, extra_data, colors_data)
     except IndexError:
         raise SystemExit("Star name not resolved by SIMBAD")
 
     # Flux ratio prior calculation with methods from flux_ratio_priors.py
-    if parameters['apply_fratio_prior']:
+    if config_dict['apply_fratio_prior']:
         print('Configuring flux ratio prior settings...')
         tref1, tref2, tab1, tab2, method, fratio, teff1, teff2 = frp.configure()
         print('Fitting V-K vs. Teff for specified subset of stars...')
@@ -47,25 +47,25 @@ if __name__ == "__main__":
         frp_dictionary = None
 
     # Angular diameters
-    theta1_in, theta2_in = angular_diameters(parameters)
+    theta1_in, theta2_in = angular_diameters(config_dict)
 
     # Reddening - prior from config.yaml and reddening law from flint
-    ebv_prior = list_to_ufloat(parameters['ebv'])
+    ebv_prior = list_to_ufloat(config_dict['ebv'])
     redlaw = ReddeningLaw.from_extinction_model('mwavg')
 
     ############################################################
     # Loading models (interpolating if required)
-    model_library = parameters['model_sed']
-    binning = parameters['binning']
-    teff1, teff2 = parameters['teff1'], parameters['teff2']
-    logg1, logg2 = parameters['logg1'], parameters['logg2']
+    model_library = config_dict['model_sed']
+    binning = config_dict['binning']
+    teff1, teff2 = config_dict['teff1'], config_dict['teff2']
+    logg1, logg2 = config_dict['logg1'], config_dict['logg2']
     if logg1 % 0.5 or logg2 % 0.5:
         raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
     if model_library == 'bt-settl':
         m_h, aFe = (0.0, 0.0)
     elif model_library == 'coelho-sed':
-        m_h = parameters['m_h']
-        aFe = parameters['aFe']
+        m_h = config_dict['m_h']
+        aFe = config_dict['aFe']
     else:
         raise ValueError(f"Invalid model SED library specified: {model_library}")
 
@@ -74,8 +74,8 @@ if __name__ == "__main__":
 
     ############################################################
     # Getting the lnlike set up and print initial result
-    nc = parameters['n_coeffs']
-    params, parname = initial_parameters(parameters, theta1_in, theta2_in, ebv_prior)
+    nc = config_dict['n_coeffs']
+    params, parname = initial_parameters(config_dict, theta1_in, theta2_in, ebv_prior)
 
     for pn, pv in zip(parname, params):
         print('{} = {}'.format(pn, pv))
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     lnlike = lnprob(params, f2m, flux_ratios,
                     theta1_in, theta2_in, spec1, spec2,
                     ebv_prior, redlaw, nc,
-                    config_dict=parameters, frp_coeffs=coeffs,
+                    config_dict=config_dict, frp_coeffs=coeffs,
                     verbose=True, debug=False)
     print('Initial log-likelihood = {:0.2f}'.format(lnlike))
 
@@ -91,9 +91,18 @@ if __name__ == "__main__":
     # Nelder-Mead optimisation
     nll = lambda *args: -lnprob(*args)
     args = (f2m, flux_ratios, theta1_in, theta2_in,
-            spec1, spec2, ebv_prior, redlaw, nc, parameters, coeffs)
+            spec1, spec2, ebv_prior, redlaw, nc, config_dict, coeffs)
     print("Finding initial solution with Nelder-Mead optimisation...")
     soln = minimize(nll, params, args=args, method='Nelder-Mead')
+
+    if config_dict['override_initial_optimisation']:
+        if config_dict['apply_colors']:
+            soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
+                                  ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l'],
+                                  config_dict['sigma_c']] + soln['x'][8:])
+        else:
+            soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
+                                  ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l']] + soln['x'][7:])
 
     # Print solutions
     for pn, pv in zip(parname, soln.x):
@@ -103,7 +112,7 @@ if __name__ == "__main__":
     lnlike = lnprob(soln.x, f2m, flux_ratios,
                     theta1_in, theta2_in, spec1, spec2,
                     ebv_prior, redlaw, nc,
-                    config_dict=parameters, frp_coeffs=coeffs,
+                    config_dict=config_dict, frp_coeffs=coeffs,
                     verbose=True)
     # Print solutions
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
@@ -111,8 +120,8 @@ if __name__ == "__main__":
     ############################################################
     # Run MCMC simulations
     print("Running MCMC simulations...")
-    n_steps, n_walkers = (parameters['mcmc_n_steps'], parameters['mcmc_n_walkers'])
-    sampler = run_mcmc_simulations(args, parameters, soln, n_steps=n_steps, n_walkers=n_walkers)
+    n_steps, n_walkers = (config_dict['mcmc_n_steps'], config_dict['mcmc_n_walkers'])
+    sampler = run_mcmc_simulations(args, config_dict, soln, n_steps=n_steps, n_walkers=n_walkers)
 
     # Retrieve output from sampler and print key attributes
     af = sampler.acceptance_fraction
@@ -125,7 +134,7 @@ if __name__ == "__main__":
     samples = sampler.get_chain()
     flat_samples = sampler.get_chain(discard=n_steps // 2, thin=8, flat=True)
 
-    show_plots = parameters['show_plots']
+    show_plots = config_dict['show_plots']
     if show_plots:
         # Convergence of chains...
         convergence_plot(samples, parname)
@@ -146,11 +155,11 @@ if __name__ == "__main__":
     lnlike = lnprob(best_pars, f2m, flux_ratios,
                     theta1_in, theta2_in, spec1, spec2,  # TODO: this should print *output* theta
                     ebv_prior, redlaw, nc,
-                    config_dict=parameters, frp_coeffs=coeffs,
+                    config_dict=config_dict, frp_coeffs=coeffs,
                     verbose=True)
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
     ############################################################
-    f_name = f"output/{parameters['run_id']}_{parameters['name']}_{tref1}_{tref2}_{m_h}_{aFe}A_{binning}_bins.pkl"
+    f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}A_{binning}_bins.pkl"
     with open(f_name, 'wb') as output:
         pickle.dump(sampler, output)

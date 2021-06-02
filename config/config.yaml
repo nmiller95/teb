@@ -1,17 +1,18 @@
 ### Core parameters to configure the temperature method.
 name: ASAS_J051753-5406.0  # Target name; must be resolvable by SIMBAD
-run_id: test  # Prefix used in output save file
+run_id: test-override-coelho  # Prefix used in output save file
 
 # Configure the method
-distortion: 1             # 0 = no distortion applied, 1 = single distortion function for both stars,
-                          # 2 = each star's SED distorted separately.
-n_coeffs: 10              # Number of distortion coefficients to use. Use 0 for a simple SED fit.
-apply_ebv_prior: True     # Whether to apply the E(B-V) prior specified below
-apply_fratio_prior: True  # Whether to apply the NIR flux ratio priors
-apply_colors: False       # Whether to include colors data
-sigma_ext: 0.008          # External noise
-sigma_l: 0.01             # Flux ratios
-sigma_c: 0.005            # Colors
+distortion: 1                       # 0 = no distortion applied, 1 = single distortion function for both stars,
+                                    # 2 = each star's SED distorted separately.
+n_coeffs: 1                         # Number of distortion coefficients to use. Use 0 for a simple SED fit.
+apply_ebv_prior: True               # Whether to apply the E(B-V) prior specified below
+apply_fratio_prior: True            # Whether to apply the NIR flux ratio priors
+apply_colors: False                 # Whether to include colors data
+sigma_ext: 0.008                    # External noise
+sigma_l: 0.01                       # Flux ratios
+sigma_c: 0.005                      # Colors
+override_initial_optimisation: True # Option to use input params as MCMC starting point instead of Nelder-Mead
 
 # MCMC and display options
 mcmc_n_steps: 1000            # Number of steps to use in MCMC simulations
