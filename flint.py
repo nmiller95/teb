@@ -191,7 +191,10 @@ class ModelSpectrum(SourceSpectrum):
                     t_model = load_spectrum_as_table(s, t_params, source)
                     model_file, model_file_0 = make_pathname(cls.cache_path, params, source, binning)
                     process_spectrum(t_model, model_file, model_file_0, reload, binning)
-                    spectra.append(SourceSpectrum.from_file(model_file))
+                    if source == 'coelho-sed':
+                        spectra.append(SourceSpectrum.from_file(model_file)*np.pi)
+                    else:
+                        spectra.append(SourceSpectrum.from_file(model_file))
                 return ((teff - lower) / t_diff) * spectra[0] + ((upper - teff) / t_diff) * spectra[1]
 
         return SourceSpectrum.from_file(model_file)
