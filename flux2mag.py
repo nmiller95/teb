@@ -268,7 +268,7 @@ class Flux2mag:
         # "Conversion to the monochromatic AB system entails an additional 2.699, 3.339, 5.174, and 6.620 added
         #  to the Vega magnitudes for W1, W2, W3, and W4, respectively"
 
-        for b in ('W1', 'W2', 'W3', 'W4'):
+        for b in ('W1', 'W2', 'W3', 'W4'):  # TODO: exclude W3, W4 if Coelho is selected
             R = self.R[b]
             f_nu = (simps(f_lambda * R(wave) * wave, wave) /
                     simps(R(wave) * 2.998e10 / wave, wave))

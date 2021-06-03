@@ -227,7 +227,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
 
     # Synthetic vs observed colours and magnitudes
     if config_dict['apply_colors']:
-        chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)  # Ignore warning, pycharm is being fussy
+        chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)  # TODO: fix this warning
     else:
         chisq, lnlike_m = flux2mag(wave, flux, sigma_ext)
 

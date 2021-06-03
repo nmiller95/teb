@@ -1,6 +1,6 @@
 ### Core parameters to configure the temperature method.
 name: ASAS_J051753-5406.0  # Target name; must be resolvable by SIMBAD
-run_id: test-override-coelho  # Prefix used in output save file
+run_id: test-override  # Prefix used in output save file
 
 # Configure the method
 distortion: 1                       # 0 = no distortion applied, 1 = single distortion function for both stars,
@@ -43,7 +43,7 @@ ebv:
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl
 # Coelho SED: limited wavelength range 130nm - 100micron and sparser teff-logg coverage.
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed
-model_sed: coelho-sed     # Which model SEDs to use. Libraries supported: bt-settl, coelho-sed
+model_sed: bt-settl     # Which model SEDs to use. Libraries supported: bt-settl, coelho-sed
 binning: 50   # Wavelength resolution to use, in Angstroms.
 # The code will use teff1, teff2 and interpolate the models.
 logg1: 4.0    # Surface gravity for primary star, in cgs. Only increments of 0.5 currently supported.

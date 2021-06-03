@@ -59,7 +59,7 @@ if __name__ == "__main__":
     binning = config_dict['binning']
     teff1, teff2 = config_dict['teff1'], config_dict['teff2']
     logg1, logg2 = config_dict['logg1'], config_dict['logg2']
-    if logg1 % 0.5 or logg2 % 0.5:
+    if logg1 % 0.5 or logg2 % 0.5:  # TODO: round instead of error
         raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
     if model_library == 'bt-settl':
         m_h, aFe = (0.0, 0.0)
@@ -99,10 +99,11 @@ if __name__ == "__main__":
         if config_dict['apply_colors']:
             soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
                                   ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l'],
-                                  config_dict['sigma_c']] + soln['x'][8:])
+                                  config_dict['sigma_c']] + list(soln['x'][8:]))
         else:
             soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
-                                  ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l']] + soln['x'][7:])
+                                  ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l']]
+                                 + list(soln['x'][7:]))
 
     # Print solutions
     for pn, pv in zip(parname, soln.x):
