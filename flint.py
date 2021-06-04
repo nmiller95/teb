@@ -152,7 +152,7 @@ class ModelSpectrum(SourceSpectrum):
     cache_path = join(dirname(abspath(__file__)), 'cache')
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
-    cache_path = join(cache_path, 'Models')
+    cache_path = join(cache_path, 'Models')  # TODO: different folders for different models!!
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
 
@@ -171,6 +171,8 @@ class ModelSpectrum(SourceSpectrum):
         else:
             if source == 'bt-settl':
                 service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
+            elif source == 'bt-settl-cifist':
+                pass
             elif source == 'coelho-sed':
                 service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&")
             else:
