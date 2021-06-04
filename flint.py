@@ -170,10 +170,13 @@ class ModelSpectrum(SourceSpectrum):
             process_spectrum(model, model_file, model_file_0, reload, binning)
         else:
             if source == 'bt-settl':
+                print('Info about the BT-Settl models....')
                 service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
             elif source == 'bt-settl-cifist':
+                print('Info about the BT-Settl-CIFIST models....')
                 pass
             elif source == 'coelho-sed':
+                print('Info about the Coelho models....')
                 service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&")
             else:
                 raise ValueError(source, "Invalid source of models specified")
