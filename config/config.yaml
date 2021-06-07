@@ -37,17 +37,19 @@ ebv:
   - 0.00269   # Prior on interstellar E(B-V) and error
   - 0.00119
 
-# Starting values of stellar models to use as basis for integrating function
+# Starting values of stellar models to use as basis for integrating function  # TODO consider making this a docstring
 # NB: not all teff-logg combinations supported by all model catalogs. Check URL for full coverage info.
-# BT-Settl: full wavelength range, detailed logg-teff coverage BUT only supports M/H = 0
+# BT-Settl: full wavelength range, detailed logg-teff coverage, M/H = [0.5, 0.3, 0.0, -0.5, -1.0, ..., -4.0]
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl
-# Coelho SED: limited wavelength range 130nm - 100micron and sparser teff-logg coverage.
+# BT-Settl-CIFIST: Caffau et al. (2011) solar abundances, full wavelength, detailed logg-teff, only M/H=0.
+# http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist
+# Coelho SED: limited range 130nm - 10um, sparser teff-logg, M/H = [0.2, 0.0, -0.1, -0.3, -0.5, -0.8, -1.0, -1.3]
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed
-model_sed: bt-settl     # Which model SEDs to use. Libraries supported: bt-settl, coelho-sed
+model_sed: bt-settl     # Which model SEDs to use. Libraries supported: bt-settl, bt-settl-cifist, coelho-sed
 binning: 50   # Wavelength resolution to use, in Angstroms.
 # The code will use teff1, teff2 and interpolate the models.
 logg1: 4.0    # Surface gravity for primary star, in cgs. Only increments of 0.5 currently supported.
 logg2: 4.0    # Surface gravity for secondary star, in cgs. Only increments of 0.5 currently supported.
-# If model_sed == bt-settl, if these != 0 they will be automatically overwritten as 0
-m_h: -0.1     # Metallicity for both stars. (C) supports [0.2, 0.0, -0.1, -0.3, -0.5, -0.8, -1.0, -1.3]
-aFe: 0.4      # Alpha fraction for both stars. (C) supports [0.0, 0.4]
+# If model_sed == bt-settl-cifist, if these != 0 they will be automatically overwritten as 0  # TODO fix this
+m_h: -0.1     # Metallicity for both stars.
+aFe: 0.4      # Alpha fraction for both stars. # TODO add guidance for this
