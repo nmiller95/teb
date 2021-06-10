@@ -48,7 +48,7 @@ def make_pathname(cache_path, params, source, binning):
         * bt-settl
         * bt-settl-cifist
         * coelho-sed
-    binning: int
+    binning: int or None
         Size of bins in Angstrom
 
     Returns
@@ -189,10 +189,6 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
         Whether to use existing file or load new version
     binning: int or None
         Size of bins in Angstrom
-
-    Returns
-    -------
-    Binned model as `astropy.table.Table`
     """
     model.sort('wave')
     model_g = model.group_by('wave')
@@ -229,13 +225,14 @@ class ModelSpectrum(SourceSpectrum):
     @classmethod
     def from_parameters(cls, teff, logg, m_h=0, afe=0, binning=10, reload=False, source='bt-settl'):
         """
+        Loads the spectrum/spectra closest to your specified parameters from your specified source.
 
         Parameters
         ----------
         teff: int
             Effective temperature of model to load, in Kelvin
         logg: float
-            Logatithm of surface gravity of model to load, in cgs
+            Logarithm of surface gravity of model to load, in cgs
         m_h: float, optional
             Metallicity of model to load.
         afe: float, optional
@@ -245,10 +242,10 @@ class ModelSpectrum(SourceSpectrum):
         reload: bool
             Whether to re-download the model from SVO.
         source: str
-        Name of model database being used. Models supported are:
-        * bt-settl
-        * bt-settl-cifist
-        * coelho-sed
+            Name of model database being used. Models supported are:
+            * bt-settl
+            * bt-settl-cifist
+            * coelho-sed
 
         Returns
         -------
@@ -260,29 +257,47 @@ class ModelSpectrum(SourceSpectrum):
         # If file exists (i.e. already downloaded and binned) and you don't want to re-download it, simples!
         if os.path.isfile(model_file) and not reload:
             return SourceSpectrum.from_file(model_file)
+
         # Get un-binned file if already downloaded
         if binning is not None and os.path.isfile(model_file_0) and not reload:
             model = Table.read(model_file_0, format='ascii')
             process_spectrum(model, model_file, model_file_0, reload, binning)
+
         else:
             if source == 'bt-settl':
-                print('Info about the BT-Settl models....')
-                service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&")
+                print("Loading BT-Settl models (Allard et al 2012, RSPTA 370. 2765A)...\n "
+                      "For more information on these models, see "
+                      "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl")
+                service = vo.dal.SSAService(
+                    "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&"
+                )
             elif source == 'bt-settl-cifist':
-                print('Info about the BT-Settl-CIFIST models....')
-                pass
+                print("Loading BT-Settl-CIFIST models (Baraffe et al. 2015, A&A 577A, 42B)...\n"
+                      "For more information on these models, see "
+                      "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist")
+                service = vo.dal.SSAService(
+                    "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl-cifist&"
+                )
             elif source == 'coelho-sed':
-                print('Info about the Coelho models....')
-                service = vo.dal.SSAService("http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&")
+                print("Loading Coelho Synthetic stellar library (SEDs) models (Coelho 2014, MNRAS 440, 1027C)\n"
+                      "CAUTION: Does not support wavelengths > 10um.\n"
+                      "For more information on these models, see "
+                      "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed")
+                service = vo.dal.SSAService(
+                    "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&"
+                )
             else:
-                raise ValueError(source, "Invalid source of models specified")
+                raise ValueError(source, "Specified model source is not supported.")
+
             # Read list of available models
             s = service.search()
             s = s.to_table()
-            # Find and load model; interpolate if necessary
+
+            # If exact model exists, load and process model
             if valid_teff(s, params, source):
                 model = load_spectrum_as_table(s, params, source)
                 process_spectrum(model, model_file, model_file_0, reload, binning)
+            # Otherwise, load and interpolate the two closest models in temperature, and then process
             else:
                 upper, lower = nearest_teff_models(s, params)
                 t_diff = upper - lower
@@ -292,10 +307,7 @@ class ModelSpectrum(SourceSpectrum):
                     t_model = load_spectrum_as_table(s, t_params, source)
                     model_file, model_file_0 = make_pathname(cls.cache_path, params, source, binning)
                     process_spectrum(t_model, model_file, model_file_0, reload, binning)
-                    if source == 'coelho-sed':
-                        spectra.append(SourceSpectrum.from_file(model_file)*np.pi)
-                    else:
-                        spectra.append(SourceSpectrum.from_file(model_file))
+                    spectra.append(SourceSpectrum.from_file(model_file))
                 return ((teff - lower) / t_diff) * spectra[0] + ((upper - teff) / t_diff) * spectra[1]
 
         return SourceSpectrum.from_file(model_file)
