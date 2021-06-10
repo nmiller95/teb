@@ -14,8 +14,15 @@ __all__ = ['ModelSpectrum']
 def make_tag(params):
     """
     Makes unique tag to use in saving the model as a local file
-    :param params: :param params: Tuple containing teff, logg, m/h and a/Fe
-    :return: String unique to the model
+
+    Parameters
+    ----------
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+
+    Returns
+    -------
+    String unique to the model
     """
     teff, logg, m_h, afe = params
     if m_h > 0:
@@ -29,11 +36,24 @@ def make_tag(params):
 def make_pathname(cache_path, params, source, binning):
     """
     Constructs pathname to binned and un-binned versions of models
-    :param cache_path: Path to cache folder
-    :param params: Tuple containing teff, logg, m/h and a/Fe
-    :param source: Name of model database being used. 'bt-settl' and 'coelho-sed' supported.
-    :param binning: Size of bins in Angstrom
-    :return: Tuple of pathname to binned and un-binned versions of models
+
+    Parameters
+    ----------
+    cache_path: str or None
+        Path to cache folder
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+    source: str
+        Name of model database being used. Models supported are:
+        * bt-settl
+        * bt-settl-cifist
+        * coelho-sed
+    binning: int
+        Size of bins in Angstrom
+
+    Returns
+    -------
+    Tuple of pathname to binned and un-binned versions of models
     """
     tag = make_tag(params)
     _f = "{}.{}.dat".format(tag, source)
@@ -49,10 +69,22 @@ def make_pathname(cache_path, params, source, binning):
 def load_spectrum_as_table(s, params, source):
     """
     Attempts to read a specific model from a source catalog of models
-    :param s: Service object from VO
-    :param params: Tuple containing teff, logg, m/h and a/Fe
-    :param source: Name of model database being used. 'bt-settl' and 'coelho-sed' supported.
-    :return: astropy.Table containing model wavelength and flux
+
+    Parameters
+    ----------
+    s: `pyvo.service`
+        Service object from pyVO
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+    source: str
+        Name of model database being used. Models supported are:
+        * bt-settl
+        * bt-settl-cifist
+        * coelho-sed
+
+    Returns
+    -------
+    `astropy.table.Table` containing model wavelength and flux
     """
     teff, logg, m_h, afe = params
     cond_teff = s['teff'] == teff
@@ -78,9 +110,17 @@ def load_spectrum_as_table(s, params, source):
 def nearest_teff_models(s, params):
     """
     Finds nearest temperature above and below the temperature specified
-    :param s: Service object from VO
-    :param params: Tuple containing teff, logg, m/h and a/Fe
-    :return: Upper and lower temperature that can be read into model
+
+    Parameters
+    ----------
+    s: `pyvo.service`
+        Service object from pyVO
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+
+    Returns
+    -------
+    Upper and lower temperature that can be read into model
     """
     teff, _, _, _ = params
     # Check which teffs are supported by the model
@@ -97,10 +137,22 @@ def nearest_teff_models(s, params):
 def valid_teff(s, params, source):
     """
     Checks if specified teff is supported by model choice
-    :param s: Service object from VO
-    :param params: Tuple containing teff, logg, m/h and a/Fe
-    :param source: Model catalog 'bt-settl' or 'coelho-sed'
-    :return: True if teff supported, otherwise false
+
+    Parameters
+    ----------
+    s: `pyvo.service`
+        Service object from pyVO
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+    source: str
+        Name of model database being used. Models supported are:
+        * bt-settl
+        * bt-settl-cifist
+        * coelho-sed
+
+    Returns
+    -------
+    True if teff supported, otherwise false
     """
     teff, _, _, _ = params
     if source == 'bt-settl':
@@ -123,18 +175,29 @@ def valid_teff(s, params, source):
 
 def process_spectrum(model, model_file, model_file_0, reload, binning):
     """
-    Bins spectrum if binning=True and saves output to cache
-    :param model: Unprocessed SED as astropy.Table
-    :param model_file: Pathname for binned version
-    :param model_file_0: Pathname for un-binned version
-    :param reload: Whether to use existing file or load new version
-    :param binning: Size of bins in Angstrom
-    :return: Binned model as astropy.Table
+    Bins spectrum (if binning is specified) and saves output to cache
+
+    Parameters
+    ----------
+    model: `astropy.table.Table`
+        Unprocessed SED
+    model_file: str
+        Pathname for binned version
+    model_file_0: str
+        Pathname for un-binned version
+    reload: bool
+        Whether to use existing file or load new version
+    binning: int or None
+        Size of bins in Angstrom
+
+    Returns
+    -------
+    Binned model as `astropy.table.Table`
     """
     model.sort('wave')
     model_g = model.group_by('wave')
     model = model_g.groups.aggregate(np.mean)
-    model['flux'].unit = 'FLAM'  # TODO: check this is right for both sets of models
+    model['flux'].unit = 'FLAM'
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UnitsWarning)
         if not os.path.isfile(model_file_0):
@@ -149,6 +212,13 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
 
 
 class ModelSpectrum(SourceSpectrum):
+    """
+    Model spectrum class.
+
+    For details about the SourceSpectrum output, see
+        https://synphot.readthedocs.io/en/latest/synphot/spectrum.html
+    """
+    # Get pathname for where to make a cache of model files you will download
     cache_path = join(dirname(abspath(__file__)), 'cache')
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
@@ -158,6 +228,32 @@ class ModelSpectrum(SourceSpectrum):
 
     @classmethod
     def from_parameters(cls, teff, logg, m_h=0, afe=0, binning=10, reload=False, source='bt-settl'):
+        """
+
+        Parameters
+        ----------
+        teff: int
+            Effective temperature of model to load, in Kelvin
+        logg: float
+            Logatithm of surface gravity of model to load, in cgs
+        m_h: float, optional
+            Metallicity of model to load.
+        afe: float, optional
+            Alpha fraction of model to load.
+        binning: int or None, optional
+            Size of wavelength bins to use when binning the model.
+        reload: bool
+            Whether to re-download the model from SVO.
+        source: str
+        Name of model database being used. Models supported are:
+        * bt-settl
+        * bt-settl-cifist
+        * coelho-sed
+
+        Returns
+        -------
+        `synphot.SourceSpectrum`
+        """
         params = (teff, logg, m_h, afe)
         model_file, model_file_0 = make_pathname(cls.cache_path, params, source, binning)
 
