@@ -7,15 +7,17 @@ from scipy.optimize import minimize
 from uncertainties import ufloat
 import yaml
 import warnings
-warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore')  # TODO: catch these warnings properly
 
 
 def configure():
     """
     Reads the GCS III and WISE data, applies cuts based on config file
 
-    :return: Reference temperatures for primary and secondary star, cross-matched tables
-        corresponding to primary and secondary stars based on the ranges specified in the config file
+    Returns
+    -------
+    Reference temperatures for primary and secondary star, cross-matched tables
+    corresponding to primary and secondary stars based on the ranges specified in the config file
     """
     t_hdu1 = Table.read('GCS3_WISE.fits', hdu=1)
     t_hdu2 = Table.read('GCS3_WISE.fits', hdu=2)
@@ -59,11 +61,16 @@ def fitcol(band, table, tref=5777, method='quad'):
     """
     Fits sample of GCS-WISE stars with either polynomial or linear relation
 
-    :param band: Which photometric band to fit over, e.g. 'J'
-    :param table: Table containing GCS+WISE data
-    :param tref: Float, reference temperature in K. Default is nominal solar Teff.
-    :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
-    :type table: astropy.table.Table
+    Parameters
+    ----------
+    band: str
+        Which photometric band to fit over, e.g. 'J'
+    table: `astropy.table.Table`
+        Table containing GCS+WISE data
+    tref: int or float, optional
+        Reference temperature in Kelvin. Default is nominal solar Teff.
+    method: str, optional
+        Type of fit to use. Accepts 'lin' and 'quad' only.
 
     :return: Coefficients and rms of the fit
     """
@@ -105,15 +112,22 @@ def frp_coeffs(tref1, tref2, table1, table2, method='quad'):
     """
     Calculates coefficients for flux ratio prior calculation.
 
-    :param tref1: Reference temperature in K for the primary star
-    :param tref2: Reference temperature in K for the secondary star
-    :param table1: Table containing GCS-WISE data in Teff range of primary star
-    :param table2: Table containing GCS-WISE data in Teff range of secondary star
-    :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
-    :type table1: astropy.table.Table
-    :type table2: astropy.table.Table
+    Parameters
+    ----------
+    tref1: int or float
+        Reference temperature in K for the primary star
+    tref2: int or float
+        Reference temperature in K for the secondary star
+    table1: `astropy.table.Table`
+        Table containing GCS-WISE data in Teff range of primary star
+    table2: `astropy.table.Table`
+        Table containing GCS-WISE data in Teff range of secondary star
+    method: str, optional
+        Type of fit to use. Accepts 'lin' and 'quad' only.
 
-    :return: Dictionary of coefficients to use in generation of flux ratio priors
+    Returns
+    -------
+    Dictionary of coefficients to use in generation of flux ratio priors
     """
     data = {}
     bands = ['Jmag', 'Hmag', 'Kmag', 'W1mag', 'W2mag', 'W3mag', 'W4mag']
@@ -139,15 +153,26 @@ def flux_ratio_priors(Vrat, teff1, teff2, tref1, tref2, coeffs, method='quad'):
     """
     Calculates a predicted flux ratio for your star in each of the 2MASS and WISE bands
 
-    :param Vrat: Flux ratio of your star in the V band
-    :param teff1: Temperature of primary star in K
-    :param teff2: Temperature of secondary star in K
-    :param tref1: Reference temperature used in generation of coefficients for primary
-    :param tref2: Reference temperature used in generation of coefficients for secondary
-    :param coeffs: Dictionary of coefficients calculated using frp_coeffs
-    :param method: Type of fit to use. Accepts 'lin' and 'quad' only.
+    Parameters
+    ----------
+    Vrat: float
+        Flux ratio of your star in the V band
+    teff1: int or float
+        Temperature of primary star in K
+    teff2: int or float
+        Temperature of secondary star in K
+    tref1: int or float
+        Reference temperature used in generation of coefficients for primary
+    tref2: int or float
+        Reference temperature used in generation of coefficients for secondary
+    coeffs: dict
+        Dictionary of coefficients calculated using frp_coeffs
+    method: str, optional
+        Type of fit to use. Accepts 'lin' and 'quad' only.
 
-    :return: Dictionary of flux ratio priors for 2MASS and WISE bands
+    Returns
+    -------
+    Dictionary of flux ratio priors for 2MASS and WISE bands
     """
     if method == 'lin':
         # Return a dictionary of ufloat priors on flux ratios
@@ -164,10 +189,10 @@ def flux_ratio_priors(Vrat, teff1, teff2, tref1, tref2, coeffs, method='quad'):
         # Return a dictionary of ufloat priors on flux ratios
         d = {}
         for b in coeffs.keys():
-            col1 = coeffs[b]['p01'] + coeffs[b]['p11'] * (teff1 - tref1) / 1000.0
-            + coeffs[b]['p21'] * ((teff1 - tref1) / 1000.0) ** 2
-            col2 = coeffs[b]['p02'] + coeffs[b]['p12'] * (teff2 - tref2) / 1000.0
-            + coeffs[b]['p22'] * ((teff2 - tref2) / 1000.0) ** 2
+            col1 = coeffs[b]['p01'] + coeffs[b]['p11'] * (teff1 - tref1) / 1000.0 \
+                + coeffs[b]['p21'] * ((teff1 - tref1) / 1000.0) ** 2
+            col2 = coeffs[b]['p02'] + coeffs[b]['p12'] * (teff2 - tref2) / 1000.0 \
+                + coeffs[b]['p22'] * ((teff2 - tref2) / 1000.0) ** 2
             L = Vrat * 10 ** (0.4 * (col2 - col1))
             e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
             d[b] = ufloat(L, e_L)
