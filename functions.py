@@ -1,16 +1,16 @@
 from uncertainties import ufloat, correlation_matrix
+from matplotlib import pyplot as plt
 import numpy as np
+from astropy.table import Table
 import astropy.units as u
 from synphot import units
 from scipy.special import legendre
 from scipy.integrate import simps
-import flux_ratio_priors as frp
 import yaml
 import emcee
 from multiprocessing import Pool
+import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
-from astropy.table import Table
-from matplotlib import pyplot as plt
 
 
 def list_to_ufloat(two_item_list):
@@ -21,7 +21,10 @@ def list_to_ufloat(two_item_list):
 def load_photometry():
     """
     Reads photometry inputs from photometry.yaml and prepares them for the method
-    :return: flux ratios, extra data, colors data as dictionaries
+
+    Returns
+    -------
+    Flux ratios, extra data, colors data as dictionaries
     """
     # Load and initialise photometric data from photometry_data.yaml
     stream = open('config/photometry_data.yaml', 'r')
@@ -65,8 +68,15 @@ def load_photometry():
 def angular_diameters(config_dict):
     """
     Converts input radii and Gaia parallax to angular diameters in mas
-    :param config_dict: Dictionary containing parameters, loaded from config.yaml
-    :return: Angular diameters for primary and secondary stars as ufloats.
+
+    Parameters
+    ----------
+    config_dict: dict
+        Dictionary containing parameters, loaded from config.yaml
+
+    Returns
+    -------
+    Angular diameters for primary and secondary stars as `uncertainties.ufloat` objects
     """
     # Parallax load and apply zeropoint
     gaia_zp = ufloat(-0.017, 0.011)  # Gaia EDR3. ZP error fixed at DR2 value for now
@@ -84,11 +94,21 @@ def angular_diameters(config_dict):
 def initial_parameters(config_dict, theta1, theta2, ebv_prior):
     """
     Loads and generates parameters for log likelihood calculations
-    :param config_dict: Dictionary containing parameters, loaded from config.yaml
-    :param theta1: Angular diameter of primary star in mas as ufloat
-    :param theta2: Angular diameter of secondary star in mas as ufloat
-    :param ebv_prior: Prior on interstellar reddening as ufloat
-    :return: Parameters and parameter names as two lists
+
+    Parameters
+    ----------
+    config_dict: dict
+        Dictionary containing parameters, loaded from config.yaml
+    theta1: `uncertainties.ufloat`
+        Angular diameter of primary star in mas
+    theta2: `uncertainties.ufloat`
+        Angular diameter of secondary star in mas
+    ebv_prior: `uncertainties.ufloat`
+        Prior on interstellar reddening as ufloat
+
+    Returns
+    -------
+    Parameters and parameter names as two lists
     """
     teff1 = config_dict['teff1']
     teff2 = config_dict['teff2']
@@ -126,26 +146,50 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     """
     Log probability function for the fundamental effective temperature of eclipsing binary stars method.
 
-    :param params: Model parameters and hyper-parameters as list. Should contain:
-        teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
-    :param flux2mag: Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
-    :param lratios: Flux ratios and response functions (dictionary)
-    :param theta1_in: Angular diamater of primary star in mas (initial value)
-    :param theta2_in: Angular diameter of secondary star in mas (initial value)
-    :param spec1: Model spectrum of primary star (flint.ModelSpectrum object)
-    :param spec2: Model spectrum of secondary star (flint.ModelSpectrum object)
-    :param ebv_prior: Prior on E(B-V) as ufloat
-    :param redlaw: Reddening law (synphot.ReddeningLaw object)
-    :param nc: Number of distortion coefficients for primary star (star 1)
-    :param frp_coeffs: Dictionary of flux ratio prior coefficients over suitable temperature range
-    :param config_dict: Dictionary containing configuration parameters, from config.yaml file
-    :param wmin: Lower wavelength cut for model spectrum, in Angstroms
-    :param wmax: Upper wavelength cut for model spectrum, in Angstroms
-    :param return_flux: Whether to return the wavelength, flux and distortion arrays
-    :param blobs: For the MCMC
-    :param debug: Whether to print extra stuff
-    :param verbose: Whether to print out all the parameters
-    :return: Either log likelihood and log prior, or wavelength, flux and distortion arrays
+    Parameters
+    ----------
+    params: list
+        Model parameters and hyper-parameters as list. Should contain:
+            teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
+    flux2mag: `flux2mag.Flux2Mag`
+        Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
+    lratios: dict
+        Flux ratios and response functions
+    theta1_in: `uncertainties.ufloat`
+        Angular diamater of primary star in mas (initial value)
+    theta2_in: `uncertainties.ufloat`
+        Angular diameter of secondary star in mas (initial value)
+    spec1: `synphot.SourceSpectrum`
+        Model spectrum of primary star
+    spec2: `synphot.SourceSpectrum`
+        Model spectrum of secondary star
+    ebv_prior: `uncertainties.ufloat`
+        Prior on E(B-V)
+    redlaw: `synphot.ReddeningLaw`
+        Reddening law
+    nc: int
+        Number of distortion coefficients for primary star (star 1)
+    config_dict: dict
+        Dictionary containing configuration parameters, from config.yaml file
+    frp_coeffs: dict, optional
+        Dictionary of flux ratio prior coefficients over suitable temperature range
+    wmin: int, optional
+        Lower wavelength cut for model spectrum, in Angstroms
+    wmax: int, optional
+        Upper wavelength cut for model spectrum, in Angstroms
+    return_flux: bool, optional
+        Whether to return the wavelength, flux and distortion arrays
+    blobs: bool, optional
+        For the MCMC
+    debug: bool, optional
+        Whether to print extra stuff
+    verbose: bool, optional
+        Whether to print out all the parameters
+
+    Returns
+    -------
+    Either log likelihood and log prior (return_flux=False),
+    or wavelength, flux and distortion arrays (return_flux=True)
     """
     sigma_sb = 5.670367E-5  # erg.cm-2.s-1.K-4
     distortion_type = config_dict['distortion']
@@ -333,12 +377,23 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
 def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps=1000, n_walkers=256):
     """
     Runs MCMC via the emcee module, using the least squares solution as a starting point
-    :param arguments: Starting values as list
-    :param config_dict: Dictionary of configuration parameters from config.yaml
-    :param least_squares_solution: Output of scipy.minimize
-    :param n_steps: Number of MCMC simulations to perform. Default = 1000.
-    :param n_walkers: Number of walkers to use. Default = 256.
-    :return: emcee.sampler object
+
+    Parameters
+    ----------
+    arguments: list
+        Starting values as list
+    config_dict: dict
+        Dictionary of configuration parameters from config.yaml
+    least_squares_solution: `scipy.optimize.OptimizeResult`  # TODO: make this optional so it can be overridden
+        Output of minimization
+    n_steps: int, optional
+        Number of MCMC simulations to perform. Default = 1000.
+    n_walkers: int, optional
+        Number of walkers to use. Default = 256.
+
+    Returns
+    -------
+    `emcee.sampler` object
     """
     nc = config_dict['n_coeffs']
     th1, th2 = angular_diameters(config_dict)
@@ -363,9 +418,15 @@ def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps
 def convergence_plot(samples, parameter_names):
     """
     Generates plots to show convergence of the temperatures and angular diameters
-    :param samples: samples object from emcee.sampler.get_chain()
-    :param parameter_names: List of the parameter names
-    :return: Convergence plot
+
+    Parameters
+    ----------
+    samples: samples object from emcee.sampler.get_chain()
+    parameter_names: List of the parameter names
+
+    Returns
+    -------
+    Convergence plot
     """
     fig, axes = plt.subplots(4, figsize=(10, 7), sharex='col')
     i0 = 0
@@ -376,4 +437,4 @@ def convergence_plot(samples, parameter_names):
         ax.set(xlim=(0, len(samples)), ylabel=labels[i])
         ax.yaxis.set_label_coords(-0.1, 0.5)
     axes[-1].set_xlabel("Step number")
-    plt.show()
+    plt.show()  # TODO: save option
