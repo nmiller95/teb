@@ -1,19 +1,18 @@
 """
 teb - a python tool for calculating fundamental effective [t]emperatures of [e]clipsing [b]inaries
 
-authors: nikki miller, pierre maxted (2021)
+Authors: Nikki Miller, Pierre Maxted (2021)
 """
 import numpy as np
 from matplotlib import pylab as plt
-# from uncertainties import ufloat, covariance_matrix, correlation_matrix
-from flint import ModelSpectrum
-from synphot import ReddeningLaw
-import corner
-from scipy.optimize import minimize
-from flux2mag import Flux2mag
-import flux_ratio_priors as frp
 import yaml
 import _pickle as pickle  # cPickle is faster than pickle
+from synphot import ReddeningLaw
+from scipy.optimize import minimize
+import corner
+from flint import ModelSpectrum
+from flux2mag import Flux2mag
+import flux_ratio_priors as frp
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
     run_mcmc_simulations, load_photometry, convergence_plot
 
