@@ -12,7 +12,7 @@ apply_colors: False                 # Whether to include colors data
 sigma_ext: 0.008                    # External noise
 sigma_l: 0.01                       # Flux ratios
 sigma_c: 0.005                      # Colors
-override_initial_optimisation: True # Option to use input params as MCMC starting point instead of Nelder-Mead
+override_initial_optimisation: False # Option to use input params as MCMC starting point instead of Nelder-Mead # TODO: this doesn't work
 
 # MCMC and display options
 mcmc_n_steps: 1000            # Number of steps to use in MCMC simulations
@@ -45,7 +45,7 @@ ebv:
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist
 # Coelho SED: limited range 130nm - 10um, sparser teff-logg, M/H = [0.2, 0.0, -0.1, -0.3, -0.5, -0.8, -1.0, -1.3]
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed
-model_sed: bt-settl     # Which model SEDs to use. Libraries supported: bt-settl, bt-settl-cifist, coelho-sed
+model_sed: bt-settl-cifist     # Which model SEDs to use. Libraries supported: bt-settl, bt-settl-cifist, coelho-sed
 binning: 50   # Wavelength resolution to use, in Angstroms.
 # The code will use teff1, teff2 and interpolate the models.
 logg1: 4.0    # Surface gravity for primary star, in cgs. Only increments of 0.5 currently supported.

@@ -91,12 +91,12 @@ def load_spectrum_as_table(s, params, source):
     cond_logg = s['logg'] == logg
     cond_meta = s['meta'] == m_h
     # Column names depend on source
-    if source == 'bt-settl':
+    if source == 'bt-settl' or source == 'bt-settl-cifist':
         cond_alpha = s['alpha'] == afe
     elif source == 'coelho-sed':
         cond_alpha = s['afe'] == afe
     else:
-        raise NameError('model not supported')
+        raise NameError("Specified model source is not supported.")
     # Restricts table to just the requested parameters
     s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
     try:
@@ -158,6 +158,13 @@ def valid_teff(s, params, source):
     if source == 'bt-settl':
         if teff < 400 or teff > 70000:
             raise ValueError("Temperature outside range supported by BT-Settl models. Must be 400K <= Teff <= 70000K")
+        elif teff % 100:
+            return False
+        else:
+            return True
+    elif source == 'bt-settl-cifist':
+        if teff < 1200 or teff > 7000:
+            raise ValueError("Temperature outside range supported by BT-Settl-CIFIST. Must be 400K <= Teff <= 7000K")
         elif teff % 100:
             return False
         else:
@@ -265,21 +272,21 @@ class ModelSpectrum(SourceSpectrum):
 
         else:
             if source == 'bt-settl':
-                print("Loading BT-Settl models (Allard et al 2012, RSPTA 370. 2765A)...\n "
+                print("Loading BT-Settl model(s) (Allard et al 2012, RSPTA 370. 2765A)\n "
                       "For more information on these models, see "
                       "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl")
                 service = vo.dal.SSAService(
                     "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&"
                 )
             elif source == 'bt-settl-cifist':
-                print("Loading BT-Settl-CIFIST models (Baraffe et al. 2015, A&A 577A, 42B)...\n"
+                print("Loading BT-Settl-CIFIST model(s) (Baraffe et al. 2015, A&A 577A, 42B)\n"
                       "For more information on these models, see "
                       "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist")
                 service = vo.dal.SSAService(
                     "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl-cifist&"
                 )
             elif source == 'coelho-sed':
-                print("Loading Coelho Synthetic stellar library (SEDs) models (Coelho 2014, MNRAS 440, 1027C)\n"
+                print("Loading Coelho Synthetic stellar library (SEDs) model(s) (Coelho 2014, MNRAS 440, 1027C)\n"
                       "CAUTION: Does not support wavelengths > 10um.\n"
                       "For more information on these models, see "
                       "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed")

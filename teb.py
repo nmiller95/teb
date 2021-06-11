@@ -60,9 +60,9 @@ if __name__ == "__main__":
     logg1, logg2 = config_dict['logg1'], config_dict['logg2']
     if logg1 % 0.5 or logg2 % 0.5:  # TODO: round instead of error
         raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
-    if model_library == 'bt-settl':
+    if model_library == 'bt-settl-cifist':
         m_h, aFe = (0.0, 0.0)
-    elif model_library == 'coelho-sed':
+    elif model_library == 'bt-settl' or model_library == 'coelho-sed':
         m_h = config_dict['m_h']
         aFe = config_dict['aFe']
     else:

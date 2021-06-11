@@ -365,7 +365,7 @@ class Flux2mag:
 
         # Compare observed and synthetic magnitudes and colours and calculate lnlike and fit chi-squared
         lnlike_m, chisq = 0, 0
-        for k in self.syn_mag:
+        for k in self.syn_mag.keys():
             z = self.obs_mag[k] - self.syn_mag[k]
             wt = 1 / (z.s ** 2 + sig_ext ** 2)
             chisq += z.n ** 2 * wt
@@ -373,7 +373,7 @@ class Flux2mag:
 
         if apply_colors and self.syn_col:
             lnlike_c = 0
-            for k in self.syn_col:
+            for k in self.syn_col.keys():
                 z = self.obs_col[k] - self.syn_col[k]
                 wt = 1 / (z.s ** 2 + sig_col ** 2)
                 chisq += z.n ** 2 * wt
