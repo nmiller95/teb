@@ -9,9 +9,9 @@ n_coeffs: 1                         # Number of distortion coefficients to use. 
 apply_ebv_prior: True               # Whether to apply the E(B-V) prior specified below
 apply_fratio_prior: True            # Whether to apply the NIR flux ratio priors
 apply_colors: False                 # Whether to include colors data
-sigma_ext: 0.008                    # External noise
-sigma_l: 0.01                       # Flux ratios
-sigma_c: 0.005                      # Colors
+sigma_ext: 0.008                    # External noise on magnitude data
+sigma_l: 0.01                       # External noise on flux ratios
+sigma_c: 0.005                      # External noise on colors
 override_initial_optimisation: False # Option to use input params as MCMC starting point instead of Nelder-Mead # TODO: this doesn't work
 
 # MCMC and display options

@@ -136,11 +136,14 @@ if __name__ == "__main__":
 
     show_plots = config_dict['show_plots']
     if show_plots:
-        # Convergence of chains...
+        # Convergence of chains plot for params excluding distortion coefficients
         convergence_plot(samples, parname, config_dict)
 
-        # Corner plot for all free parameters
+        # Corner plot for all free parameters excluding distortion coefficients
         fig = corner.corner(flat_samples, labels=parname)
+        fig.suptitle(f"Corner plot for {name} ({config_dict['run_id']}) \n"
+                     f"Model SED source: {config_dict['model']}\n"
+                     f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
         if config_dict['save_plots']:
             f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}" \
                      f"_{binning}A_bins_corner.png"

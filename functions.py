@@ -415,7 +415,6 @@ def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps
     return sampler
 
 
-# TODO: all plots: make nicer (stylesheet) and include some customisation options
 def convergence_plot(samples, parameter_names, config_dict):
     """
     Generates plots to show convergence of the temperatures and angular diameters
@@ -541,6 +540,10 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
 
     fig, ax = plt.subplots(n_panels, figsize=(8, 3*n_panels), sharex='col', gridspec_kw=gridspec)
     fig.subplots_adjust(hspace=0.05)
+    fig.suptitle(f"Convergence plot for {config_dict['name']} ({config_dict['run_id']}) \n"
+                 f"Model SED source: {config_dict['model']}\n"
+                 f"Teff1 = {config_dict['teff1']}, Teff2 = {config_dict['teff2']}, "
+                 f"M/H = {config_dict['m_h']}, a/Fe = {config_dict['aFe']}", fontsize=14)
 
     # Integrating functions panel
     ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C' # TODO: 1e12 might not work for Coelho
