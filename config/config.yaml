@@ -7,7 +7,7 @@ distortion: 1                       # 0 = no distortion applied, 1 = single dist
                                     # 2 = each star's SED distorted separately.
 n_coeffs: 1                         # Number of distortion coefficients to use. Use 0 for a simple SED fit.
 apply_ebv_prior: True               # Whether to apply the E(B-V) prior specified below
-apply_fratio_prior: True            # Whether to apply the NIR flux ratio priors
+apply_fratio_prior: False            # Whether to apply the NIR flux ratio priors
 apply_colors: False                 # Whether to include colors data
 sigma_ext: 0.008                    # External noise on magnitude data
 sigma_l: 0.01                       # External noise on flux ratios
@@ -24,7 +24,7 @@ corner_exclude_coeffs: False  # Whether to exclude distortion coeffs from being 
 
 # Physical parameters of the two stars
 teff1: 6410   # Best value of T_eff,1, in Kelvin
-teff2: 6270   # Best value of T_eff,2, in Kelvin
+teff2: 6300   # Best value of T_eff,2, in Kelvin
 plx:
   - 2.6256    # Gaia EDR3 parallax and error, in milliarcseconds
   - 0.014
@@ -38,7 +38,7 @@ ebv:
   - 0.00269   # Prior on interstellar E(B-V) and error
   - 0.00119
 
-# Starting values of stellar models to use as basis for integrating function  # TODO consider making this a docstring
+# Starting values of stellar models to use as basis for integrating function  # TODO consider making this a readme
 # NB: not all teff-logg combinations supported by all model catalogs. Check URL for full coverage info.
 # BT-Settl: full wavelength range, detailed logg-teff coverage, M/H = [0.5, 0.3, 0.0, -0.5, -1.0, ..., -4.0]
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl
@@ -46,11 +46,11 @@ ebv:
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist
 # Coelho SED: limited range 130nm - 10um, sparser teff-logg, M/H = [0.2, 0.0, -0.1, -0.3, -0.5, -0.8, -1.0, -1.3]
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed
-model_sed: bt-settl-cifist     # Which model SEDs to use. Libraries supported: bt-settl, bt-settl-cifist, coelho-sed
+model_sed: bt-settl     # Which model SEDs to use. Libraries supported: bt-settl, bt-settl-cifist, coelho-sed
 binning: 50   # Wavelength resolution to use, in Angstroms.
 # The code will use teff1, teff2 and interpolate the models.
-logg1: 4.0    # Surface gravity for primary star, in cgs. Only increments of 0.5 currently supported.
-logg2: 4.0    # Surface gravity for secondary star, in cgs. Only increments of 0.5 currently supported.
-# If model_sed == bt-settl-cifist, if these != 0 they will be automatically overwritten as 0  # TODO fix this
+logg1: 4.3    # Surface gravity for primary star, in cgs.
+logg2: 4.5    # Surface gravity for secondary star, in cgs.
+# If model_sed == bt-settl-cifist, if these != 0 they will be automatically overwritten as 0
 m_h: -0.1     # Metallicity for both stars.
-aFe: 0.4      # Alpha fraction for both stars. # TODO add guidance for this
+aFe: 0.0      # Alpha fraction for both stars. # TODO add guidance for this

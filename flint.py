@@ -27,7 +27,7 @@ def make_tag(params):
     teff, logg, m_h, afe = params
     if m_h > 0:
         tfmt = "lte{:03.0f}-{:3.1f}+{:3.1f}a{:+3.1f}"
-        return tfmt.format(teff / 100, logg, m_h, afe)
+        return tfmt.format(teff / 100, logg, m_h, afe)  # TODO: teff/100 might not be suitable for Coelho format
     else:
         tfmt = "lte{:03.0f}-{:3.1f}-{:3.1f}a{:+3.1f}"
         return tfmt.format(teff / 100, logg, abs(m_h), afe)
@@ -56,13 +56,13 @@ def make_pathname(cache_path, params, source, binning):
     Tuple of pathname to binned and un-binned versions of models
     """
     tag = make_tag(params)
-    _f = f"{source}/{tag}.dat"
+    _f = f"{source}-{tag}.dat"
     model_file_0 = join(cache_path, _f)
     if binning is None:
         model_file = model_file_0
     else:  # Gets pathname for file that's been binned up
-        ffmt = "{}.{}_{:04d}.dat"
-        model_file = join(cache_path, ffmt.format(tag, source, int(binning)))
+        ffmt = "{}-{}_binning={:04d}.dat"
+        model_file = join(cache_path, ffmt.format(source, tag, int(binning)))
     return model_file, model_file_0
 
 
@@ -102,7 +102,8 @@ def load_spectrum_as_table(s, params, source):
     try:
         url = (s[0]['Spectrum']).decode("utf-8")
     except IndexError:
-        raise FileNotFoundError("Spectrum with specified parameters not found. Check [M/H] and [a/Fe]")
+        raise FileNotFoundError(f"Spectrum with teff = {teff}, logg = {logg}, [M/H] = {m_h}, [a/Fe] = {afe} not found "
+                                f"in the {source} model catalog. \nCheck that your [M/H] and [a/Fe] are supported.")
     url += '&format=ascii'
     return Table.read(url, format='ascii.fast_no_header', names=('wave', 'flux'))
 
@@ -180,6 +181,75 @@ def valid_teff(s, params, source):
             return False
 
 
+def nearest_m_h_models(s, params):
+    """
+    Finds nearest M/H above and below the M/H specified
+
+    Parameters
+    ----------
+    s: `pyvo.service`
+        Service object from pyVO
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+
+    Returns
+    -------
+    Upper and lower M/H that can be read into model
+    """
+    _, _, m_h, _ = params
+    # Check which M/H are supported by the model
+    s_list = []
+    for val in s['meta']:
+        if val not in s_list:
+            s_list.append(val)
+    s_list.sort()
+    i = 0
+    while m_h > s_list[i]:
+        i += 1
+    return s_list[i],  s_list[i-1]
+
+
+def valid_m_h(params, source):
+    """
+    Checks if specified M/H is supported by model choice
+
+    Parameters
+    ----------
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+    source: str
+        Name of model database being used. Models supported are:
+        * bt-settl
+        * bt-settl-cifist
+        * coelho-sed
+
+    Returns
+    -------
+    True if M/H supported, otherwise false
+    """
+    _, _, m_h, _ = params
+    if source == 'bt-settl':
+        if m_h < -4.0 or m_h > 0.5:
+            raise ValueError("M/H outside range supported by BT-Settl models. Must be -4.0 <= M/H <= 0.5")
+        elif m_h in [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.3, 0.5]:
+            # TODO: eventually, remove this hard coding
+            return True
+        else:
+            return False
+    elif source == 'bt-settl-cifist':
+        if m_h == 0.0:
+            return True
+        else:
+            return False
+    elif source == 'coelho-sed':
+        if m_h < -1.3 or m_h > 0.2:
+            raise ValueError("M/H outside range supported by Coelho SEDs. Must be -1.3 <= M/H <= 0.2")
+        if m_h in [-1.3, -1.0, -0.8, -0.5, -0.3, -0.1, 0.0, 0.2]:
+            return True
+        else:
+            return False
+
+
 def process_spectrum(model, model_file, model_file_0, reload, binning):
     """
     Bins spectrum (if binning is specified) and saves output to cache
@@ -214,6 +284,37 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
             model.write(model_file, format='ascii', overwrite=True)
 
 
+def interpolate_two_models(params, upper_model, lower_model, upper_val, lower_val, which):
+    """
+    Performs linear interpolation on two models already loaded
+
+    Parameters
+    ----------
+    params
+    upper_model
+    lower_model
+    upper_val
+    lower_val
+    which: str
+        Which axis to interpolate along. Options: 'teff', 'logg' or 'm_h'
+
+    Returns
+    -------
+    Interpolated model
+    """
+    diff = upper_val - lower_val
+    if which == 'teff':
+        nominal_val, _, _, _ = params
+    elif which == 'logg':
+        _, nominal_val, _, _ = params
+    elif which == 'm_h':
+        _, _, nominal_val, _ = params
+    else:
+        raise ValueError(f"teb currently does not support interpolation along {which} axis.")
+
+    return ((nominal_val - lower_val) / diff) * upper_model + ((upper_val - nominal_val) / diff) * lower_model
+
+
 def interpolate_teff(s, params, source, cache_path, reload, binning):
     """
     Finds closest two models in temperature space and linearly interpolates between them
@@ -242,15 +343,14 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     """
     teff, logg, m_h, afe = params
     upper, lower = nearest_teff_models(s, params)
-    t_diff = upper - lower
     spectra = []  # TODO: at a later date.... make this not repeat
     for t_step in (upper, lower):
         t_params = (t_step, logg, m_h, afe)
         t_model = load_spectrum_as_table(s, t_params, source)
-        model_file, model_file_0 = make_pathname(cache_path, params, source, binning)
+        model_file, model_file_0 = make_pathname(cache_path, t_params, source, binning)
         process_spectrum(t_model, model_file, model_file_0, reload, binning)
         spectra.append(SourceSpectrum.from_file(model_file))
-    return ((teff - lower) / t_diff) * spectra[0] + ((upper - teff) / t_diff) * spectra[1]
+    return interpolate_two_models(params, spectra[0], spectra[1], upper, lower, which='teff')
 
 
 def interpolate_logg(s, params, source, cache_path, reload, binning):
@@ -282,15 +382,52 @@ def interpolate_logg(s, params, source, cache_path, reload, binning):
     teff, logg, m_h, afe = params
     lower = np.floor(logg*2)/2  # Round down to the nearest interval of 0.5
     upper = lower + 0.5
-    logg_diff = 1.0
     spectra = []
     for logg_step in (upper, lower):
         logg_params = (teff, logg_step, m_h, afe)
         logg_model = load_spectrum_as_table(s, logg_params, source)
-        model_file, model_file_0 = make_pathname(cache_path, params, source, binning)
+        model_file, model_file_0 = make_pathname(cache_path, logg_params, source, binning)
         process_spectrum(logg_model, model_file, model_file_0, reload, binning)
         spectra.append(SourceSpectrum.from_file(model_file))
-    return ((logg - lower) / logg_diff) * spectra[0] + ((upper - logg) / logg_diff) * spectra[1]
+    return interpolate_two_models(params, spectra[0], spectra[1], upper, lower, which='logg')
+
+
+def interpolate_m_h(s, params, source, cache_path, reload, binning):
+    """
+        Finds closest two models in logg space and linearly interpolates between them.
+
+        Parameters
+        ----------
+        s: `pyvo.service`
+            Service object from pyVO
+        params: tuple
+            Must contain teff, logg, m/h and a/Fe
+        source: str
+            Name of model database being used. Models supported are:
+            * bt-settl
+            * bt-settl-cifist
+            * coelho-sed
+        cache_path: str or None
+            Path to cache folder
+        reload: bool
+            Whether to use existing file or load new version
+        binning: int or None
+            Size of bins in Angstrom
+
+        Returns
+        -------
+        Spectrum that has been linearly interpolated between two nearest logg grid points
+        """
+    teff, logg, m_h, afe = params
+    upper, lower = nearest_m_h_models(s, params)
+    spectra = []
+    for m_h_step in (upper, lower):
+        m_h_params = (teff, logg, m_h_step, afe)
+        m_h_model = load_spectrum_as_table(s, m_h_params, source)
+        model_file, model_file_0 = make_pathname(cache_path, m_h_params, source, binning)
+        process_spectrum(m_h_model, model_file, model_file_0, reload, binning)
+        spectra.append(SourceSpectrum.from_file(model_file))
+    return interpolate_two_models(params, spectra[0], spectra[1], upper, lower, which='m_h')
 
 
 class ModelSpectrum(SourceSpectrum):
@@ -304,7 +441,7 @@ class ModelSpectrum(SourceSpectrum):
     cache_path = join(dirname(abspath(__file__)), 'cache')
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
-    cache_path = join(cache_path, 'Models')  # TODO: different folders for different models!!
+    cache_path = join(cache_path, 'Models')
     if not os.path.exists(cache_path):
         os.mkdir(cache_path)
 
@@ -338,6 +475,11 @@ class ModelSpectrum(SourceSpectrum):
         `synphot.SourceSpectrum`
         """
         params = (teff, logg, m_h, afe)
+
+        # Parameter validity checks
+        if not 5.5 > logg > 2.5:
+            raise ValueError("teb does not currently support logg less than 2.5 or greater than 5.5")
+
         model_file, model_file_0 = make_pathname(cls.cache_path, params, source, binning)
 
         # If file exists (i.e. already downloaded and binned) and you don't want to re-download it, simples!
@@ -379,33 +521,81 @@ class ModelSpectrum(SourceSpectrum):
             s = service.search()
             s = s.to_table()
 
-            # If exact teff & logg model exists, load and process model
+            # Temperature matches available models
             if valid_teff(s, params, source):
-                if logg % 0.5 and 5.5 > logg > 2.5:
-                    model = load_spectrum_as_table(s, params, source)
-                    process_spectrum(model, model_file, model_file_0, reload, binning)
-                    return SourceSpectrum.from_file(model_file)
-                # If temperature matches a model but logg needs interpolating...
-                elif 5.5 > logg > 2.5:
-                    return interpolate_logg(s, params, source, cls.cache_path, reload, binning)
+                # logg matches available models
+                if not logg % 0.5:
+                    # M/H matches available models --> no interpolation needed
+                    if valid_m_h(params, source):
+                        model = load_spectrum_as_table(s, params, source)
+                        process_spectrum(model, model_file, model_file_0, reload, binning)
+                        return SourceSpectrum.from_file(model_file)
+                    # --> M/H interpolation only
+                    else:
+                        return interpolate_m_h(s, params, source, cls.cache_path, reload, binning)
+                # logg doesn't match available models
                 else:
-                    raise ValueError("teb does not currently support logg less than 2.5 or greater than 5.5")
-            # Otherwise, load and interpolate the two closest models in temperature, and then process
+                    # --> logg interpolation only
+                    if valid_m_h(params, source):
+                        return interpolate_logg(s, params, source, cls.cache_path, reload, binning)
+                    # --> logg + M/H interpolation
+                    else:
+                        lower_logg = np.floor(logg * 2) / 2  # Round down to the nearest interval of 0.5
+                        upper_logg = lower_logg + 0.5
+                        lower_logg_params = (teff, lower_logg, m_h, afe)
+                        upper_logg_params = (teff, upper_logg, m_h, afe)
+                        lower_logg_model = interpolate_m_h(s, lower_logg_params, source, cls.cache_path, reload,
+                                                           binning)
+                        upper_logg_model = interpolate_m_h(s, upper_logg_params, source, cls.cache_path, reload,
+                                                           binning)
+                        return interpolate_two_models(params, upper_logg_model, lower_logg_model,
+                                                      upper_logg, lower_logg, which='logg')
+            # Temperature doesn't match available models
             else:
-                # If logg matches a model but teff needs interpolating...
-                if logg % 0.5:
-                    return interpolate_teff(s, params, source, cls.cache_path, reload, binning)
-                # Interpolating along both teff and logg axes
-                elif 5.5 > logg > 2.5:
-                    lower_logg = np.floor(logg * 2) / 2  # Round down to the nearest interval of 0.5
-                    upper_logg = lower_logg + 0.5
-                    lower_logg_params = (teff, lower_logg, m_h, afe)
-                    upper_logg_params = (teff, upper_logg, m_h, afe)
-                    lower_logg_model = interpolate_teff(s, lower_logg_params, source, cls.cache_path, reload, binning)
-                    upper_logg_model = interpolate_teff(s, upper_logg_params, source, cls.cache_path, reload, binning)
-                    return ((logg - lower_logg) / 1.0) * upper_logg_model + \
-                           ((upper_logg - logg) / 1.0) * lower_logg_model
+                # logg matches available models
+                if not logg % 0.5:
+                    # M/H matches available models --> Temperature interpolation only
+                    if valid_m_h(params, source):
+                        return interpolate_teff(s, params, source, cls.cache_path, reload, binning)
+                    # --> M/H and temperature interpolation
+                    else:
+                        upper_teff, lower_teff = nearest_teff_models(s, params)
+                        lower_teff_params = (lower_teff, logg, m_h, afe)
+                        upper_teff_params = (upper_teff, logg, m_h, afe)
+                        lower_teff_model = interpolate_m_h(s, lower_teff_params, source, cls.cache_path, reload,
+                                                           binning)
+                        upper_teff_model = interpolate_m_h(s, upper_teff_params, source, cls.cache_path, reload,
+                                                           binning)
+                        return interpolate_two_models(params, upper_teff_model, lower_teff_model,
+                                                      upper_teff, lower_teff, which='teff')
+                # logg doesn't match available models
                 else:
-                    raise ValueError("teb does not currently support logg less than 2.5 or greater than 5.5")
+                    # M/H matches available models --> Temperature and logg interpolation
+                    if valid_m_h(params, source):
+                        lower_logg = np.floor(logg * 2) / 2  # Round down to the nearest interval of 0.5
+                        upper_logg = lower_logg + 0.5
+                        lower_logg_params = (teff, lower_logg, m_h, afe)
+                        upper_logg_params = (teff, upper_logg, m_h, afe)
+                        lower_logg_model = interpolate_teff(s, lower_logg_params, source, cls.cache_path, reload, binning)
+                        upper_logg_model = interpolate_teff(s, upper_logg_params, source, cls.cache_path, reload, binning)
+                        return interpolate_two_models(params, upper_logg_model, lower_logg_model,
+                                                      upper_logg, lower_logg, which='logg')
+                    # Nothing matches available models --> logg, M/H and temperature interpolation
+                    else:
+                        upper_m_h, lower_m_h = nearest_m_h_models(s, params)
+                        lower_logg = np.floor(logg * 2) / 2  # Round down to the nearest interval of 0.5
+                        upper_logg = lower_logg + 0.5
+                        spectra = []
+                        for m_h_step in (upper_m_h, lower_m_h):
+                            lower_logg_params = (teff, lower_logg, m_h_step, afe)
+                            upper_logg_params = (teff, upper_logg, m_h_step, afe)
+                            lower_logg_model = interpolate_teff(s, lower_logg_params, source, cls.cache_path, reload,
+                                                                binning)
+                            upper_logg_model = interpolate_teff(s, upper_logg_params, source, cls.cache_path, reload,
+                                                                binning)
+                            spectra.append(interpolate_two_models(params, upper_logg_model, lower_logg_model,
+                                           upper_logg, lower_logg, which='logg'))
+                        return interpolate_two_models(params, spectra[0], spectra[1],
+                                                      upper_m_h, lower_m_h, which='m_h')
 
         return SourceSpectrum.from_file(model_file)

@@ -58,8 +58,8 @@ if __name__ == "__main__":
     binning = config_dict['binning']
     teff1, teff2 = config_dict['teff1'], config_dict['teff2']
     logg1, logg2 = config_dict['logg1'], config_dict['logg2']
-    if logg1 % 0.5 or logg2 % 0.5:  # TODO: round instead of error
-        raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
+    # if logg1 % 0.5 or logg2 % 0.5:
+    #     raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
     if model_library == 'bt-settl-cifist':
         m_h, aFe = (0.0, 0.0)
     elif model_library == 'bt-settl' or model_library == 'coelho-sed':
