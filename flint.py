@@ -214,6 +214,85 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
             model.write(model_file, format='ascii', overwrite=True)
 
 
+def interpolate_teff(s, params, source, cache_path, reload, binning):
+    """
+    Finds closest two models in temperature space and linearly interpolates between them
+
+    Parameters
+    ----------
+    s: `pyvo.service`
+        Service object from pyVO
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+    source: str
+        Name of model database being used. Models supported are:
+        * bt-settl
+        * bt-settl-cifist
+        * coelho-sed
+    cache_path: str or None
+        Path to cache folder
+    reload: bool
+        Whether to use existing file or load new version
+    binning: int or None
+        Size of bins in Angstrom
+
+    Returns
+    -------
+    Spectrum that has been linearly interpolated between two nearest temperatures
+    """
+    teff, logg, m_h, afe = params
+    upper, lower = nearest_teff_models(s, params)
+    t_diff = upper - lower
+    spectra = []  # TODO: at a later date.... make this not repeat
+    for t_step in (upper, lower):
+        t_params = (t_step, logg, m_h, afe)
+        t_model = load_spectrum_as_table(s, t_params, source)
+        model_file, model_file_0 = make_pathname(cache_path, params, source, binning)
+        process_spectrum(t_model, model_file, model_file_0, reload, binning)
+        spectra.append(SourceSpectrum.from_file(model_file))
+    return ((teff - lower) / t_diff) * spectra[0] + ((upper - teff) / t_diff) * spectra[1]
+
+
+def interpolate_logg(s, params, source, cache_path, reload, binning):
+    """
+    Finds closest two models in logg space and linearly interpolates between them.
+
+    Parameters
+    ----------
+    s: `pyvo.service`
+        Service object from pyVO
+    params: tuple
+        Must contain teff, logg, m/h and a/Fe
+    source: str
+        Name of model database being used. Models supported are:
+        * bt-settl
+        * bt-settl-cifist
+        * coelho-sed
+    cache_path: str or None
+        Path to cache folder
+    reload: bool
+        Whether to use existing file or load new version
+    binning: int or None
+        Size of bins in Angstrom
+
+    Returns
+    -------
+    Spectrum that has been linearly interpolated between two nearest logg grid points
+    """
+    teff, logg, m_h, afe = params
+    lower = np.floor(logg*2)/2  # Round down to the nearest interval of 0.5
+    upper = lower + 0.5
+    logg_diff = 1.0
+    spectra = []
+    for logg_step in (upper, lower):
+        logg_params = (teff, logg_step, m_h, afe)
+        logg_model = load_spectrum_as_table(s, logg_params, source)
+        model_file, model_file_0 = make_pathname(cache_path, params, source, binning)
+        process_spectrum(logg_model, model_file, model_file_0, reload, binning)
+        spectra.append(SourceSpectrum.from_file(model_file))
+    return ((logg - lower) / logg_diff) * spectra[0] + ((upper - logg) / logg_diff) * spectra[1]
+
+
 class ModelSpectrum(SourceSpectrum):
     """
     Model spectrum class.
@@ -300,21 +379,33 @@ class ModelSpectrum(SourceSpectrum):
             s = service.search()
             s = s.to_table()
 
-            # If exact model exists, load and process model
+            # If exact teff & logg model exists, load and process model
             if valid_teff(s, params, source):
-                model = load_spectrum_as_table(s, params, source)
-                process_spectrum(model, model_file, model_file_0, reload, binning)
+                if logg % 0.5 and 5.5 > logg > 2.5:
+                    model = load_spectrum_as_table(s, params, source)
+                    process_spectrum(model, model_file, model_file_0, reload, binning)
+                    return SourceSpectrum.from_file(model_file)
+                # If temperature matches a model but logg needs interpolating...
+                elif 5.5 > logg > 2.5:
+                    return interpolate_logg(s, params, source, cls.cache_path, reload, binning)
+                else:
+                    raise ValueError("teb does not currently support logg less than 2.5 or greater than 5.5")
             # Otherwise, load and interpolate the two closest models in temperature, and then process
             else:
-                upper, lower = nearest_teff_models(s, params)
-                t_diff = upper - lower
-                spectra = []
-                for t_step in (upper, lower):
-                    t_params = (t_step, logg, m_h, afe)
-                    t_model = load_spectrum_as_table(s, t_params, source)
-                    model_file, model_file_0 = make_pathname(cls.cache_path, params, source, binning)
-                    process_spectrum(t_model, model_file, model_file_0, reload, binning)
-                    spectra.append(SourceSpectrum.from_file(model_file))
-                return ((teff - lower) / t_diff) * spectra[0] + ((upper - teff) / t_diff) * spectra[1]
+                # If logg matches a model but teff needs interpolating...
+                if logg % 0.5:
+                    return interpolate_teff(s, params, source, cls.cache_path, reload, binning)
+                # Interpolating along both teff and logg axes
+                elif 5.5 > logg > 2.5:
+                    lower_logg = np.floor(logg * 2) / 2  # Round down to the nearest interval of 0.5
+                    upper_logg = lower_logg + 0.5
+                    lower_logg_params = (teff, lower_logg, m_h, afe)
+                    upper_logg_params = (teff, upper_logg, m_h, afe)
+                    lower_logg_model = interpolate_teff(s, lower_logg_params, source, cls.cache_path, reload, binning)
+                    upper_logg_model = interpolate_teff(s, upper_logg_params, source, cls.cache_path, reload, binning)
+                    return ((logg - lower_logg) / 1.0) * upper_logg_model + \
+                           ((upper_logg - logg) / 1.0) * lower_logg_model
+                else:
+                    raise ValueError("teb does not currently support logg less than 2.5 or greater than 5.5")
 
         return SourceSpectrum.from_file(model_file)
