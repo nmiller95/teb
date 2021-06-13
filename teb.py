@@ -142,7 +142,7 @@ if __name__ == "__main__":
         # Corner plot for all free parameters excluding distortion coefficients
         fig = corner.corner(flat_samples, labels=parname)
         fig.suptitle(f"Corner plot for {name} ({config_dict['run_id']}) \n"
-                     f"Model SED source: {config_dict['model']}\n"
+                     f"Model SED source: {config_dict['model_sed']}\n"
                      f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
         if config_dict['save_plots']:
             f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}" \

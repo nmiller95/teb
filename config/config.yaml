@@ -7,7 +7,7 @@ distortion: 1                       # 0 = no distortion applied, 1 = single dist
                                     # 2 = each star's SED distorted separately.
 n_coeffs: 1                         # Number of distortion coefficients to use. Use 0 for a simple SED fit.
 apply_ebv_prior: True               # Whether to apply the E(B-V) prior specified below
-apply_fratio_prior: False            # Whether to apply the NIR flux ratio priors
+apply_fratio_prior: True            # Whether to apply the NIR flux ratio priors
 apply_colors: False                 # Whether to include colors data
 sigma_ext: 0.008                    # External noise on magnitude data
 sigma_l: 0.01                       # External noise on flux ratios
@@ -15,7 +15,7 @@ sigma_c: 0.005                      # External noise on colors
 override_initial_optimisation: False # Option to use input params as MCMC starting point instead of Nelder-Mead # TODO: this doesn't work
 
 # MCMC and display options
-mcmc_n_steps: 1000            # Number of steps to use in MCMC simulations
+mcmc_n_steps: 500            # Number of steps to use in MCMC simulations
 mcmc_n_walkers: 256           # Number of walkers to use in MCMC simulations
 show_plots: True              # Whether to generate convergence, corner and final SED plots
 save_plots: True              # Whether to save these plots in output directory
