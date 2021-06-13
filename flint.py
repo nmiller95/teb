@@ -56,7 +56,7 @@ def make_pathname(cache_path, params, source, binning):
     Tuple of pathname to binned and un-binned versions of models
     """
     tag = make_tag(params)
-    _f = "{}.{}.dat".format(tag, source)
+    _f = f"{source}/{tag}.dat"
     model_file_0 = join(cache_path, _f)
     if binning is None:
         model_file = model_file_0
