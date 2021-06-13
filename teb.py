@@ -14,7 +14,7 @@ from flint import ModelSpectrum
 from flux2mag import Flux2mag
 import flux_ratio_priors as frp
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
-    run_mcmc_simulations, load_photometry, convergence_plot
+    run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, distortion_plot
 
 
 if __name__ == "__main__":
@@ -138,19 +138,21 @@ if __name__ == "__main__":
     if show_plots:
         # Convergence of chains...
         convergence_plot(samples, parname, config_dict)
+
         # Corner plot for all free parameters
         fig = corner.corner(flat_samples, labels=parname)
+        if config_dict['save_plots']:
+            f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}" \
+                     f"_{binning}A_bins_corner.png"
+            plt.savefig(f_name)
         plt.show()
 
-    # TODO: also stick this in a function
-    for i, pn in enumerate(parname):
-        val = flat_samples[:, i].mean()
-        err = flat_samples[:, i].std()
-        ndp = 1 - min(0, np.floor((np.log10(err))))
-        fmt = '{{:0.{:0.0f}f}}'.format(ndp)
-        vstr = fmt.format(val)
-        estr = fmt.format(err)
-        print('{} = {} +/- {}'.format(pn, vstr, estr))
+        # Distortion plot with final SED for both stars
+        distortion_plot(best_pars, f2m, flux_ratios, theta1_in, theta2_in, spec1, spec2, ebv_prior,
+                        redlaw, nc, frp_dictionary, config_dict, flat_samples)
+
+    # Prints best solution from MCMC
+    print_mcmc_solution(flat_samples, parname)
 
     lnlike = lnprob(best_pars, f2m, flux_ratios,
                     theta1_in, theta2_in, spec1, spec2,  # TODO: this should print *output* theta
@@ -160,6 +162,6 @@ if __name__ == "__main__":
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
     ############################################################
-    f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}A_{binning}_bins.pkl"
+    f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}_{binning}A_bins.pkl"
     with open(f_name, 'wb') as output:
         pickle.dump(sampler, output)

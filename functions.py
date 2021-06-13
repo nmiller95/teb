@@ -1,5 +1,6 @@
 from uncertainties import ufloat, correlation_matrix
 from matplotlib import pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import numpy as np
 from astropy.table import Table
 import astropy.units as u
@@ -459,6 +460,130 @@ def convergence_plot(samples, parameter_names, config_dict):
 
     # Save and display
     if config_dict['save_plots']:
-        fname = f"output/{run_id}_{name}_{teff1}_{teff2}_{m_h}_{aFe}A_{binning}_bins.png"
+        fname = f"output/{run_id}_{name}_{teff1}_{teff2}_{m_h}_{aFe}_{binning}A_bins_convergence.png"
         plt.savefig(fname)
+    plt.show()
+
+
+def print_mcmc_solution(flat_samples, parameter_names):
+    """
+    Prints the best values from the MCMC
+
+    Parameters
+    ----------
+    flat_samples: array_like
+        Flattened chain from the emcee sampler
+    parameter_names: list
+        List of the parameter names
+
+    """
+    for i, pn in enumerate(parameter_names):
+        val = flat_samples[:, i].mean()
+        err = flat_samples[:, i].std()
+        ndp = 1 - min(0, np.floor((np.log10(err))))
+        fmt = '{{:0.{:0.0f}f}}'.format(ndp)
+        v_str = fmt.format(val)
+        e_str = fmt.format(err)
+        print('{} = {} +/- {}'.format(pn, v_str, e_str))
+
+
+def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, nc,
+                    frp_coeffs, config_dict, flat_samples):
+    """
+    Generates plot showing final integrating functions and distortion for both stars
+
+    Parameters
+    ----------
+    best_pars: list
+        Model parameters and hyper-parameters as list. Should contain:
+            teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
+    flux2mag: `flux2mag.Flux2Mag`
+        Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
+    lratios: dict
+        Flux ratios and response functions
+    theta1: `uncertainties.ufloat`
+        Angular diameter of primary star in mas (initial value)
+    theta2: `uncertainties.ufloat`
+        Angular diameter of secondary star in mas (initial value)
+    spec1: `synphot.SourceSpectrum`
+        Model spectrum of primary star
+    spec2: `synphot.SourceSpectrum`
+        Model spectrum of secondary star
+    ebv_prior: `uncertainties.ufloat`
+        Prior on E(B-V)
+    redlaw: `synphot.ReddeningLaw`
+        Reddening law
+    nc: int
+        Number of distortion coefficients for primary star (star 1)
+    config_dict: dict
+        Dictionary containing configuration parameters, from config.yaml file
+    frp_coeffs: dict, optional
+        Dictionary of flux ratio prior coefficients over suitable temperature range
+    flat_samples: array_like
+        Flattened chain from the emcee sampler
+
+    Returns
+    -------
+    Distortion plot
+    """
+    if config_dict['distortion'] == 2:
+        n_panels = 3
+        gridspec = {'height_ratios': [5, 2, 2]}
+        wave, flux, f1, f2, d1, d2 = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
+                                            redlaw, nc, config_dict, frp_coeffs, return_flux=True)
+    elif config_dict['distortion'] == 1:
+        n_panels = 2
+        gridspec = {'height_ratios': [4, 2]}
+        wave, flux, f1, f2, d1 = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
+                                        redlaw, nc, config_dict, frp_coeffs, return_flux=True)
+    else:
+        return None
+
+    fig, ax = plt.subplots(n_panels, figsize=(8, 3*n_panels), sharex='col', gridspec_kw=gridspec)
+    fig.subplots_adjust(hspace=0.05)
+
+    # Integrating functions panel
+    ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C' # TODO: 1e12 might not work for Coelho
+    ax[0].semilogx(wave, 1e12 * f2, c='#ffa600', label='Secondary')  # c='#CEC814'
+    ax[0].set(xlim=(1002, 299998), ylim=(-0.0, 0.25), yticks=(np.arange(0, 0.25, 0.05)),
+              ylabel=r'$f_{\lambda}$  [10$^{-12}$ erg cm$^{-2}$ s$^{-1}$]')
+    ax[0].yaxis.set_minor_locator(MultipleLocator(0.05))
+    ax[0].legend()
+
+    # Primary distortion functions panel
+    ax[1].semilogx(wave, d1, c='black')
+    ax[1].set(xlabel=r'Wavelength [$\AA$]', ylabel=r'$\Delta_1$', ylim=(-0.35, 0.35))
+    ax[1].yaxis.set_minor_locator(MultipleLocator(0.05))
+
+    try:
+        # Secondary distortion functions panel
+        ax[2].semilogx(wave, d2, c='black')
+        ax[2].set(xlabel=r'Wavelength [$\AA$]', ylabel=r'$\Delta_2$', ylim=(-0.35, 0.35))
+        ax[2].yaxis.set_minor_locator(MultipleLocator(0.05))
+
+        # Plot a subset of distortion polynomials for both distortion panels
+        for i in range(0, len(flat_samples), len(flat_samples) // 64):
+            _, _, _, _, _d1, _d2 = lnprob(
+                flat_samples[i, :], flux2mag, lratios,
+                theta1, theta2, spec1, spec2,
+                ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)
+            ax[1].semilogx(wave, _d1, c='black', alpha=0.1)
+            ax[2].semilogx(wave, _d2, c='black', alpha=0.1)
+    except ValueError():
+        # Plot a subset of distortion polynomials in only one panel
+        for i in range(0, len(flat_samples), len(flat_samples) // 64):
+            _, _, _, _, _d1, _d2 = lnprob(
+                flat_samples[i, :], flux2mag, lratios,
+                theta1, theta2, spec1, spec2,
+                ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)
+            ax[1].semilogx(wave, _d1, c='black', alpha=0.1)
+
+    fig.align_ylabels()
+
+    # Display plot and save plot to output directory
+    if config_dict['save_plots']:
+        f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{config_dict['teff1']}_" \
+                 f"{config_dict['teff2']}_{config_dict['m_h']}_{config_dict['aFe']}" \
+                 f"_{config_dict['binning']}A_bins_corner.png"
+        plt.savefig(f_name)
     plt.show()
