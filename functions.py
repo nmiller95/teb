@@ -415,26 +415,50 @@ def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps
 
 
 # TODO: all plots: make nicer (stylesheet) and include some customisation options
-def convergence_plot(samples, parameter_names):
+def convergence_plot(samples, parameter_names, config_dict):
     """
     Generates plots to show convergence of the temperatures and angular diameters
 
     Parameters
     ----------
-    samples: samples object from emcee.sampler.get_chain()
-    parameter_names: List of the parameter names
+    samples:
+        samples object from emcee.sampler.get_chain()
+    parameter_names: list
+        List of the parameter names
+    config_dict: dict
+        Dictionary containing parameters, loaded from config.yaml
 
     Returns
     -------
     Convergence plot
     """
-    fig, axes = plt.subplots(4, figsize=(10, 7), sharex='col')
+    # Read info from config file
+    if config_dict['apply_colors']:
+        n_panels = 8
+    else:
+        n_panels = 7
+    teff1, teff2 = config_dict['teff1'], config_dict['teff2']
+    m_h, aFe = config_dict['m_h'], config_dict['aFe']
+    model, binning = config_dict['model_sed'], config_dict['binning']
+    run_id, name = config_dict['run_id'], config_dict['name']
+
+    # Create plot
+    fig, axes = plt.subplots(n_panels, figsize=(10, 10), sharex='col')
     i0 = 0
-    labels = parameter_names[i0:i0 + 4]
-    for i in range(4):
+    labels = parameter_names[i0:i0 + n_panels]
+    for i in range(n_panels):
         ax = axes[i]
         ax.plot(samples[:, :, i0 + i], "k", alpha=0.3)
         ax.set(xlim=(0, len(samples)), ylabel=labels[i])
         ax.yaxis.set_label_coords(-0.1, 0.5)
-    axes[-1].set_xlabel("Step number")
-    plt.show()  # TODO: save option
+    axes[-1].set(xlabel="Step number")
+    fig.suptitle(f"Convergence plot for {name} ({run_id}) \n"
+                 f"Model SED source: {model}\n"
+                 f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
+    fig.align_labels()
+
+    # Save and display
+    if config_dict['save_plots']:
+        fname = f"output/{run_id}_{name}_{teff1}_{teff2}_{m_h}_{aFe}A_{binning}_bins.png"
+        plt.savefig(fname)
+    plt.show()

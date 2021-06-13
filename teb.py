@@ -137,7 +137,7 @@ if __name__ == "__main__":
     show_plots = config_dict['show_plots']
     if show_plots:
         # Convergence of chains...
-        convergence_plot(samples, parname)
+        convergence_plot(samples, parname, config_dict)
         # Corner plot for all free parameters
         fig = corner.corner(flat_samples, labels=parname)
         plt.show()

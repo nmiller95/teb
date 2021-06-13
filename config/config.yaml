@@ -18,6 +18,7 @@ override_initial_optimisation: False # Option to use input params as MCMC starti
 mcmc_n_steps: 1000            # Number of steps to use in MCMC simulations
 mcmc_n_walkers: 256           # Number of walkers to use in MCMC simulations
 show_plots: True              # Whether to generate convergence, corner and final SED plots
+save_plots: True              # Whether to save these plots in output directory
 corner_exclude_coeffs: False  # Whether to exclude distortion coeffs from being displayed in corner plot
                               # (recommended for large values of 'n_coeffs')
 
