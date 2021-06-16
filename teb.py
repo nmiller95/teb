@@ -18,12 +18,21 @@ from functions import lnprob, list_to_ufloat, angular_diameters, initial_paramet
 
 
 if __name__ == "__main__":
+
+    print("""
+    teb -- a python tool for calculating fundamental effective temperatures
+    
+    [ Space for full intro text here ]
+    
+    """)
+
     # Load photometry data from photometry.yaml
     flux_ratios, extra_data, colors_data = load_photometry()
 
     ############################################################
     # Load basic, custom and model parameters from config.yaml
-    stream = open('config/config.yaml', 'r')
+    config_name = input("Configuration file name: config/")
+    stream = open('config/' + config_name, 'r')
     config_dict = yaml.safe_load(stream)
     # Create Flux2mag object from name and photometry data
     try:
