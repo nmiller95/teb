@@ -558,7 +558,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     ax[1].set(xlabel=r'Wavelength [$\AA$]', ylabel=r'$\Delta_1$', ylim=(-0.35, 0.35))
     ax[1].yaxis.set_minor_locator(MultipleLocator(0.05))
 
-    try:
+    if config_dict['distortion'] == 2:
         # Secondary distortion functions panel
         ax[2].semilogx(wave, d2, c='black')
         ax[2].set(xlabel=r'Wavelength [$\AA$]', ylabel=r'$\Delta_2$', ylim=(-0.35, 0.35))
@@ -572,10 +572,10 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
                 ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)
             ax[1].semilogx(wave, _d1, c='black', alpha=0.1)
             ax[2].semilogx(wave, _d2, c='black', alpha=0.1)
-    except ValueError():
+    elif config_dict['distortion'] == 1:
         # Plot a subset of distortion polynomials in only one panel
         for i in range(0, len(flat_samples), len(flat_samples) // 64):
-            _, _, _, _, _d1, _d2 = lnprob(
+            _, _, _, _, _d1 = lnprob(
                 flat_samples[i, :], flux2mag, lratios,
                 theta1, theta2, spec1, spec2,
                 ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)

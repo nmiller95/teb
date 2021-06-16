@@ -150,9 +150,12 @@ if __name__ == "__main__":
             plt.savefig(f_name)
         plt.show()
 
-        # Distortion plot with final SED for both stars
-        distortion_plot(best_pars, f2m, flux_ratios, theta1_in, theta2_in, spec1, spec2, ebv_prior,
-                        redlaw, nc, frp_dictionary, config_dict, flat_samples)
+        # Distortion plot with final SED for both stars  # TODO: fix this - hint below
+        # File "<ipython-input-8-52a4d834a98f>", line 49, in distortion_plot
+        #  redlaw, nc, config_dict, frp_coeffs, return_flux=True)
+        # ValueError: too many values to unpack (expected 5)
+        # distortion_plot(best_pars, f2m, flux_ratios, theta1_in, theta2_in, spec1, spec2, ebv_prior,
+        #                 redlaw, nc, frp_dictionary, config_dict, flat_samples)
 
     # Prints best solution from MCMC
     print_mcmc_solution(flat_samples, parname)
