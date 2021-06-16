@@ -100,7 +100,10 @@ def load_spectrum_as_table(s, params, source):
     # Restricts table to just the requested parameters
     s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
     try:
-        url = (s[0]['Spectrum']).decode("utf-8")
+        if type(s[0]['Spectrum']) == str:
+            url = (s[0]['Spectrum']).decode("utf-8")
+        else:
+            url = s[0]['Spectrum']
     except IndexError:
         raise FileNotFoundError(f"Spectrum with teff = {teff}, logg = {logg}, [M/H] = {m_h}, [a/Fe] = {afe} not found "
                                 f"in the {source} model catalog. \nCheck that your [M/H] and [a/Fe] are supported.")
