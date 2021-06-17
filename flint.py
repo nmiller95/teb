@@ -100,10 +100,9 @@ def load_spectrum_as_table(s, params, source):
     # Restricts table to just the requested parameters
     s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
     try:
-        if type(s[0]['Spectrum']) == str:
-            url = (s[0]['Spectrum']).decode("utf-8")
-        else:
-            url = s[0]['Spectrum']
+        url = str(s[0]['Spectrum'], 'utf-8')
+    except TypeError:
+        url = s[0]['Spectrum']
     except IndexError:
         raise FileNotFoundError(f"Spectrum with teff = {teff}, logg = {logg}, [M/H] = {m_h}, [a/Fe] = {afe} not found "
                                 f"in the {source} model catalog. \nCheck that your [M/H] and [a/Fe] are supported.")
@@ -345,6 +344,10 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     Spectrum that has been linearly interpolated between two nearest temperatures
     """
     teff, logg, m_h, afe = params
+    if m_h == -0.5:  # TODO: fix the bodge
+        afe = 0.2
+    elif m_h == 0.0:
+        afe = 0.0
     upper, lower = nearest_teff_models(s, params)
     spectra = []  # TODO: at a later date.... make this not repeat
     for t_step in (upper, lower):
@@ -424,8 +427,14 @@ def interpolate_m_h(s, params, source, cache_path, reload, binning):
     teff, logg, m_h, afe = params
     upper, lower = nearest_m_h_models(s, params)
     spectra = []
+    print(f'metallicity interpolated between: {upper} and {lower}')
     for m_h_step in (upper, lower):
-        m_h_params = (teff, logg, m_h_step, afe)
+        if m_h_step == -0.5:
+            m_h_params = (teff, logg, -0.5, 0.2)
+        elif m_h_step == 0.0:
+            m_h_params = (teff, logg, 0.0, 0.0)
+        else:
+            m_h_params = (teff, logg, m_h_step, afe)
         m_h_model = load_spectrum_as_table(s, m_h_params, source)
         model_file, model_file_0 = make_pathname(cache_path, m_h_params, source, binning)
         process_spectrum(m_h_model, model_file, model_file_0, reload, binning)
