@@ -12,6 +12,7 @@ import emcee
 from multiprocessing import Pool
 import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
+import sys
 
 
 def list_to_ufloat(two_item_list):
@@ -19,7 +20,7 @@ def list_to_ufloat(two_item_list):
     return ufloat(two_item_list[0], two_item_list[1])
 
 
-def load_photometry():
+def load_photometry(photometry_file):
     """
     Reads photometry inputs from photometry.yaml and prepares them for the method
 
@@ -28,7 +29,11 @@ def load_photometry():
     Flux ratios, extra data, colors data as dictionaries
     """
     # Load and initialise photometric data from photometry_data.yaml
-    stream = open('config/photometry_data.yaml', 'r')
+    try:
+        stream = open(f'config/{photometry_file}', 'r')
+    except FileNotFoundError as err:
+        print(err)
+        sys.exit()
     photometry = yaml.safe_load(stream)
     # Flux ratios - initialised with FluxRatio from flux_ratios.py
     try:

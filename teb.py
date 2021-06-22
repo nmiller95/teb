@@ -3,6 +3,7 @@ teb - a python tool for calculating fundamental effective [t]emperatures of [e]c
 
 Authors: Nikki Miller, Pierre Maxted (2021)
 """
+import sys, getopt
 import numpy as np
 from matplotlib import pylab as plt
 import yaml
@@ -17,6 +18,36 @@ from functions import lnprob, list_to_ufloat, angular_diameters, initial_paramet
     run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, distortion_plot
 
 
+def inputs(argv):
+    def usage():
+        print('\nCorrect usage:')
+        print('teb.py -c <configfile> -p <photometryfile> -f <frpfile>')
+        print('\nAssumes input files are in directory config/')
+        print('If no files are specified, the defaults are: \n--config = \"config.yaml\"'
+              '\n--photometry = \"photometry_data.yaml\" \n--frp = \"flux_ratio_priors.yaml\"')
+
+    c_file, p_file, f_file = None, None, None
+    try:
+        opts, args = getopt.getopt(argv, "hc:p:f:", ["help", "config=", "photometry=", "frp="])
+    except getopt.GetoptError as err:
+        print(err)
+        usage()
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            usage()
+            sys.exit()
+        elif opt in ("-c", "--config"):
+            c_file = arg
+        elif opt in ("-p", "--photometry"):
+            p_file = arg
+        elif opt in ("-f", "--frp"):
+            f_file = arg
+        else:
+            assert False, 'unhandled option'
+    return c_file, p_file, f_file
+
+
 if __name__ == "__main__":
 
     print("""
@@ -26,13 +57,28 @@ if __name__ == "__main__":
     
     """)
 
+    # Load file names from command line inputs
+    config_file, photometry_file, frp_file = inputs(sys.argv[1:])
+    if config_file is None:
+        config_file = "config.yaml"
+    if photometry_file is None:
+        photometry_file = "photometry_data.yaml"
+    if frp_file is None:
+        frp_file = "flux_ratio_priors.yaml"
+    print(f"teb will perform the calculations using these input files: "
+          f"\n--config = {config_file} \n--photometry = {photometry_file} \n--frp = {frp_file}\n")
+
     # Load photometry data from photometry.yaml
-    flux_ratios, extra_data, colors_data = load_photometry()
+    flux_ratios, extra_data, colors_data = load_photometry(photometry_file)
 
     ############################################################
     # Load basic, custom and model parameters from config.yaml
-    config_name = input("Configuration file name: config/")
-    stream = open('config/' + config_name, 'r')
+    # config_name = input("Configuration file name: config/")
+    try:
+        stream = open('config/' + config_file, 'r')
+    except FileNotFoundError as err:
+        print(err)
+        sys.exit()
     config_dict = yaml.safe_load(stream)
     # Create Flux2mag object from name and photometry data
     try:

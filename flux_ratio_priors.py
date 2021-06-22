@@ -7,10 +7,11 @@ from scipy.optimize import minimize
 from uncertainties import ufloat
 import yaml
 import warnings
+import sys
 warnings.filterwarnings('ignore')  # TODO: catch these warnings properly
 
 
-def configure():
+def configure(frp_file='flux_ratio_priors.yaml'):
     """
     Reads the GCS III and WISE data, applies cuts based on config file
 
@@ -23,7 +24,11 @@ def configure():
     t_hdu2 = Table.read('GCS3_WISE.fits', hdu=2)
     t = join(t_hdu1, t_hdu2[(t_hdu2['HIP'] > 0)], 'HIP')
 
-    stream = open('config/flux_ratio_priors.yaml', 'r')
+    try:
+        stream = open(f'config/{frp_file}', 'r')
+    except FileNotFoundError as err:
+        print(err)
+        sys.exit()
     constraints = yaml.safe_load(stream)
 
     qual = t['l'] == 0
