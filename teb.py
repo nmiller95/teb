@@ -95,7 +95,7 @@ if __name__ == "__main__":
         coeffs = frp.frp_coeffs(tref1, tref2, tab1, tab2, method=method)
         print('Calculating flux ratio priors...')
         frp_dictionary = frp.flux_ratio_priors(fratio, teff1, teff2, tref1, tref2, coeffs, method=method)
-        print('Flux ratio priors setup complete.')
+        print('Flux ratio priors setup complete.\n')
     else:
         coeffs = None
         frp_dictionary = None
