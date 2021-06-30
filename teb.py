@@ -222,6 +222,17 @@ if __name__ == "__main__":
                     verbose=True)
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
+    if config_dict['distortion'] == 0:
+        pass
+    elif config_dict['distortion'] == 1:
+        aic = 2*(nc+7) - 2*np.log(lnlike)  # TODO: this is hacky, doesn't work if colors (7 --> 8)
+        bic = 0
+    elif config_dict['distortion'] == 2:
+        2*(2*nc+7) - 2*np.log(lnlike)
+    else:
+        pass
+    print(f'AIC: {aic} \nBIC: {bic})
+
     ############################################################
     f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}_{binning}A_bins.pkl"
     with open(f_name, 'wb') as output:
