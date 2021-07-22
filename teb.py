@@ -3,19 +3,22 @@ teb - a python tool for calculating fundamental effective [t]emperatures of [e]c
 
 Authors: Nikki Miller, Pierre Maxted (2021)
 """
-import sys, getopt
-import numpy as np
-from matplotlib import pylab as plt
-import yaml
 import _pickle as pickle  # cPickle is faster than pickle
-from synphot import ReddeningLaw
-from scipy.optimize import minimize
+import getopt
+import sys
+
 import corner
+import numpy as np
+import yaml
+from matplotlib import pylab as plt
+from scipy.optimize import minimize
+from synphot import ReddeningLaw
+
+import flux_ratio_priors as frp
 from flint import ModelSpectrum
 from flux2mag import Flux2mag
-import flux_ratio_priors as frp
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
-    run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, distortion_plot
+    run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution
 
 
 def inputs(argv):
