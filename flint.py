@@ -107,7 +107,14 @@ def load_spectrum_as_table(s, params, source):
         raise FileNotFoundError(f"Spectrum with teff = {teff}, logg = {logg}, [M/H] = {m_h}, [a/Fe] = {afe} not found "
                                 f"in the {source} model catalog. \nCheck that your [M/H] and [a/Fe] are supported.")
     url += '&format=ascii'
-    return Table.read(url, format='ascii.fast_no_header', names=('wave', 'flux'))
+    try:
+        return Table.read(url, format='ascii.fast_no_header', names=('wave', 'flux'))
+    except FileNotFoundError:
+        try:
+            return Table.read(url, format='ascii', names=('wave', 'flux'))
+        except FileNotFoundError:
+            raise FileNotFoundError("Problem occurred in astropy.table.Table.read(). Check your astropy installation is"
+                                    " 4.0.1.post1 or later")
 
 
 def nearest_teff_models(s, params):
