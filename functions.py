@@ -57,7 +57,7 @@ def load_photometry(photometry_file):
             except OSError:
                 raise SystemExit(f"Unable to read {e['file']}.")
         extra_data = photometry['extra_data']
-    except KeyError:
+    except TypeError:
         print("No additional magnitudes provided in photometry_data.yaml")
         extra_data = None
     # Colors - simple conversion from list to ufloat
