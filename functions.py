@@ -13,6 +13,7 @@ from multiprocessing import Pool
 import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
 import sys
+from scipy.interpolate import interp1d
 
 
 def list_to_ufloat(two_item_list):
@@ -147,6 +148,57 @@ def initial_parameters(config_dict, theta1, theta2, ebv_prior):
         parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
         parname = parname + ["c_2,{}".format(j + 1) for j in range(nc)]
     return params, parname
+
+
+def synthetic_optical_lratios(config_dict, spec1, spec2, theta1, theta2, redlaw, v_ratio, flux_ratios):
+    """
+    Estimates the flux ratio in the Johnson/Cousins UBVRI bands using the TESS-band flux ratio and model SEDs.
+
+    WARNING: Don't use this for your proper scientific results! This is for estimating the impact of multi-band light
+    curves on the TEB output (e.g. for observing proposals).
+
+    """
+    print("CAUTION: Calculating synthetic flux ratios using model SEDs. \n"
+          "These are to be used only for information purposes and not for final results!")
+    sigma_sb = 5.670367E-5  # erg.cm-2.s-1.K-4
+    wmin, wmax = (1000, 300000)
+
+    wave = spec1.waveset
+    i = ((wmin * u.angstrom < wave) & (wave < wmax * u.angstrom)).nonzero()
+    wave = wave[i].value
+    flux1 = spec1(wave, flux_unit=units.FLAM).value
+    flux2 = spec2(wave, flux_unit=units.FLAM).value
+    flux1 = flux1 / simps(flux1, wave)
+    flux2 = flux2 / simps(flux2, wave)
+
+    extinction = redlaw.extinction_curve(config_dict['ebv'][0])(wave).value
+    f_1 = 0.25 * sigma_sb * (theta1 / 206264806) ** 2 * config_dict['teff1'] ** 4 * flux1 * extinction
+    f_2 = 0.25 * sigma_sb * (theta2 / 206264806) ** 2 * config_dict['teff2'] ** 4 * flux2 * extinction
+
+    # RESPONSE FUNCTIONS
+    R = dict()
+    syn_lratio = dict()
+    t = Table.read('Response/J_PASP_124_140_table1.dat.fits')  # Johnson - from Bessell, 2012 PASP, 124:140-157
+    for b in ['U', 'B', 'V', 'R', 'I']:
+        wtmp = t['lam.{}'.format(b)]
+        rtmp = t[b]
+        rtmp = rtmp[wtmp > 0]
+        wtmp = wtmp[wtmp > 0]
+        R[b] = interp1d(wtmp, rtmp, bounds_error=False, fill_value=0)
+
+        # SYNTHETIC PHOTOMETRY
+        f_nu1 = (simps(f_1 * R[b](wave) * wave, wave) /
+                 simps(R[b](wave) * 2.998e10 / (wave * 1e-8), wave))
+        f_nu2 = (simps(f_2 * R[b](wave) * wave, wave) /
+                 simps(R[b](wave) * 2.998e10 / (wave * 1e-8), wave))
+        syn_lratio[b] = f_nu2 / f_nu1
+        print(f'Synthetic {b} flux ratio: {syn_lratio[b]}')
+
+        fr = FluxRatio(f'Synth_{b}', b, float(syn_lratio[b].n), float(syn_lratio[b].s))
+        tag, d = fr()
+        flux_ratios[tag] = d
+
+    return flux_ratios
 
 
 def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_prior, redlaw, nc, config_dict,

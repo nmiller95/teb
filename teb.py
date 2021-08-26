@@ -18,7 +18,7 @@ import flux_ratio_priors as frp
 from flint import ModelSpectrum
 from flux2mag import Flux2mag
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
-    run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution
+    run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, synthetic_optical_lratios
 
 
 def inputs(argv):
@@ -28,10 +28,12 @@ def inputs(argv):
         print('\nAssumes input files are in directory config/')
         print('If no files are specified, the defaults are: \n--config = \"config.yaml\"'
               '\n--photometry = \"photometry_data.yaml\" \n--frp = \"flux_ratio_priors.yaml\"')
+        print('In the case you want to try a fit with synthetic UVBRI flux ratios, add \"--synth\"')
 
     c_file, p_file, f_file = None, None, None
+    synth_lratios = False
     try:
-        opts, args = getopt.getopt(argv, "hc:p:f:", ["help", "config=", "photometry=", "frp="])
+        opts, args = getopt.getopt(argv, "hc:p:f:s:", ["help", "config=", "photometry=", "frp=", "synth"])
     except getopt.GetoptError as err:
         print(err)
         usage()
@@ -46,9 +48,11 @@ def inputs(argv):
             p_file = arg
         elif opt in ("-f", "--frp"):
             f_file = arg
+        elif opt in ("-s", "--synth"):
+            synth_lratios = True
         else:
             assert False, 'unhandled option'
-    return c_file, p_file, f_file
+    return c_file, p_file, f_file, synth_lratios
 
 
 if __name__ == "__main__":
@@ -61,7 +65,7 @@ if __name__ == "__main__":
     """)
 
     # Load file names from command line inputs
-    config_file, photometry_file, frp_file = inputs(sys.argv[1:])
+    config_file, photometry_file, frp_file, synth_lratios = inputs(sys.argv[1:])
     if config_file is None:
         config_file = "config.yaml"
     if photometry_file is None:
@@ -128,6 +132,12 @@ if __name__ == "__main__":
 
     spec1 = ModelSpectrum.from_parameters(teff1, logg1, m_h, aFe, binning=binning, reload=False, source=model_library)
     spec2 = ModelSpectrum.from_parameters(teff2, logg2, m_h, aFe, binning=binning, reload=False, source=model_library)
+
+    ############################################################
+    # Synthetic optical flux ratios (don't use for real science)
+    if synth_lratios:
+        v_ratio = yaml.safe_load(open(f'config/{frp_file}', 'r'))['flux_ratio']
+        synthetic_optical_lratios(config_dict, spec1, spec2, theta1_in, theta2_in, redlaw, v_ratio, flux_ratios)
 
     ############################################################
     # Getting the lnlike set up and print initial result
