@@ -60,6 +60,9 @@ def load_photometry(photometry_file):
     except TypeError:
         print("No additional magnitudes provided in photometry_data.yaml")
         extra_data = None
+    except KeyError:
+        print("No additional magnitudes provided in photometry_data.yaml")
+        extra_data = None
     # Colors - simple conversion from list to ufloat
     try:
         for c in photometry['colors_data']:

@@ -108,13 +108,14 @@ def load_spectrum_as_table(s, params, source):
                                 f"in the {source} model catalog. \nCheck that your [M/H] and [a/Fe] are supported.")
     url += '&format=ascii'
     try:
+        # Works for python 3.7.0 and astropy 4.2.1 on Scientific Linux
         return Table.read(url, format='ascii.fast_no_header', names=('wave', 'flux'))
     except FileNotFoundError:
         try:
+            # Works for python 3.7.3 and astropy 4.0.1 on MacOS
             return Table.read(url, format='ascii', names=('wave', 'flux'))
         except FileNotFoundError:
-            raise FileNotFoundError("Problem occurred in astropy.table.Table.read(). Check your astropy installation is"
-                                    " 4.0.1.post1 or later")
+            raise FileNotFoundError("Problem occurred in astropy.table.Table.read().")
 
 
 def nearest_teff_models(s, params):

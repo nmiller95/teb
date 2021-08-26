@@ -147,6 +147,8 @@ class Flux2mag:
                 w_pivot[b] = wp(w, r)
                 self.zp[b] = x['zp']
             self.extra_data = extra_data
+        else:
+            self.extra_data = None
 
         self.R = R
         self.w_pivot = w_pivot
@@ -215,12 +217,14 @@ class Flux2mag:
                                  "Try checking star name is correct and resolved by SIMBAD")
         for b in ['W1', 'W2', 'W3', 'W4']:
             try:
-                obs_mag[b] = ufloat(v[1][0][f'{b}mag'], v[1][0][f'e_{b}mag'])
+                if type(v[1][0][f'{b}mag']) == np.float32:
+                    obs_mag[b] = ufloat(v[1][0][f'{b}mag'], v[1][0][f'e_{b}mag'])
             except KeyError:
                 print(f"Unable to find result for {b} band in WISE catalog (II/311/wise).")
         for b in ['FUV', 'NUV']:
             try:
-                obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
+                if type(v[2][0][f'{b}mag']) == np.float64:
+                    obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
             except KeyError:
                 print(f"Unable to find result for {b} band in GALEX catalog (II/335/galex_ais).")
 
@@ -279,11 +283,14 @@ class Flux2mag:
 
         # Calculate synthetic magnitude for GALEX bands
         for b in ['FUV', 'NUV']:
-            if self.R[b]:
-                R = self.R[b]
-                f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                        simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
-                syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
+            try:
+                if self.obs_mag[b]:
+                    R = self.R[b]
+                    f_nu = (simps(f_lambda * R(wave) * wave, wave) /
+                            simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
+                    syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
+            except KeyError:
+                pass
 
         # Calculate synthetic magnitude for Gaia bands
         p_a = 0.7278
@@ -366,10 +373,13 @@ class Flux2mag:
         # Compare observed and synthetic magnitudes and colours and calculate lnlike and fit chi-squared
         lnlike_m, chisq = 0, 0
         for k in self.syn_mag.keys():
-            z = self.obs_mag[k] - self.syn_mag[k]
-            wt = 1 / (z.s ** 2 + sig_ext ** 2)
-            chisq += z.n ** 2 * wt
-            lnlike_m += -0.5 * (z.n ** 2 * wt - np.log(wt))
+            try:
+                z = self.obs_mag[k] - self.syn_mag[k]
+                wt = 1 / (z.s ** 2 + sig_ext ** 2)
+                chisq += z.n ** 2 * wt
+                lnlike_m += -0.5 * (z.n ** 2 * wt - np.log(wt))
+            except KeyError:
+                pass
 
         if apply_colors and self.syn_col:
             lnlike_c = 0
