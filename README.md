@@ -36,5 +36,18 @@ Set up the configuration yaml files with your parameters then run the main scrip
 $ python3 teb.py
 ```
 
+### A note on stellar models
+
+Two sources of model SED are supported in `teb`. 
+
+- [BT-Settl](http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl)
+  - Detailed logg-Teff coverage
+  - ?? abundances
+  - \[M/H\] from 0.5 to -4.0 supported
+- [BT-Settl-CIFIST](http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist)
+  - Detailed logg-Teff coverage
+  - Caffau et al (2011) abundances
+  - Only \[M/H\] = 0.0 supported
+
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
