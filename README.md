@@ -42,11 +42,11 @@ Two sources of model SED are supported in `teb`.
 
 - [BT-Settl](http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl)
   - Detailed logg-Teff coverage
-  - ?? abundances
+  - [Asplund et al (2009)](https://ui.adsabs.harvard.edu/abs/2009ARA%26A..47..481A/abstract) abundances
   - \[M/H\] from 0.5 to -4.0 supported
 - [BT-Settl-CIFIST](http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist)
   - Detailed logg-Teff coverage
-  - Caffau et al (2011) abundances
+  - [Caffau et al (2011)](https://ui.adsabs.harvard.edu/abs/2011SoPh..268..255C/abstract) abundances
   - Only \[M/H\] = 0.0 supported
 
 ## Contributing
