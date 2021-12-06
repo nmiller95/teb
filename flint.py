@@ -242,7 +242,6 @@ def valid_m_h(params, source):
         if m_h < -4.0 or m_h > 0.5:
             raise ValueError("M/H outside range supported by BT-Settl models. Must be -4.0 <= M/H <= 0.5")
         elif m_h in [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.3, 0.5]:
-            # TODO: eventually, remove this hard coding
             return True
         else:
             return False
@@ -352,12 +351,12 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     Spectrum that has been linearly interpolated between two nearest temperatures
     """
     teff, logg, m_h, afe = params
-    if m_h == -0.5:  # TODO: fix the bodge
+    if m_h == -0.5:  # TODO: fix this bodge
         afe = 0.2
     elif m_h == 0.0:
         afe = 0.0
     upper, lower = nearest_teff_models(s, params)
-    spectra = []  # TODO: at a later date.... make this not repeat
+    spectra = []
     for t_step in (upper, lower):
         t_params = (t_step, logg, m_h, afe)
         t_model = load_spectrum_as_table(s, t_params, source)
