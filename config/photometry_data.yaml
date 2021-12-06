@@ -1,16 +1,14 @@
-### Include your photometric data values here.
-# Currently supported: Johnson UBVRI, Stromgren uvby, Skymapper uvgriz, TESS, Galex, 2MASS, WISE, Gaia EDR3
+### Include your custom photometric data here.
+## Binary flux ratios, extra magnitudes not from catalogs, and photometric colors supported.
+## Read the guidance at the bottom of this file before use.
+
+# Flux ratios from light curve fits
 flux_ratios:
   - tag: TESS
     type: TESS
     value:
-      - 0.354
-      - 0.011
-  - tag: V_ASAS
-    type: V
-    value:
-      - 0.355
-      - 0.023
+      - 0.35391
+      - 0.00016
   - tag: B
     type: B
     value:
@@ -32,7 +30,7 @@ flux_ratios:
       - 0.3543
       - 0.0008
 
-# Photometry NOT from Galex, Gaia, 2MASS or WISE.
+# Additional magnitudes (see guidance below).
 extra_data:
   - tag: u
     type: skymapper_u
@@ -42,7 +40,7 @@ extra_data:
     zp:
       - -48.346
       - 0.216
-    file: Response/SkyMapper_SkyMapper.u.dat  # Must be ascii. 2 columns: wave (in ngstrom) & response (normalised).
+    file: Response/SkyMapper_SkyMapper.u.dat
   - tag: v
     type: skymapper_v
     mag:
@@ -51,11 +49,41 @@ extra_data:
     zp:
       - -48.51
       - 0.024
-    file: Response/SkyMapper_SkyMapper.v.dat  # Must be ascii. 2 columns: wave (in ngstrom) & response (normalised).
-# Colours. Stromgren b-y, m1, c1, and Gaia BP-RP currently supported.
+    file: Response/SkyMapper_SkyMapper.v.dat
+
+# Photometric colors
 colors_data:
   - tag: BP-RP
     type: BPRP
     color:
       - 0.61822796
       - 0.01498220
+
+### HOW TO USE THIS CONFIGURATION FILE
+
+## Flux ratios
+# 'tag' (str): Unique name for measurement, can be same as band
+# 'type' (str): Bandpass name. Supported bands are:
+# * GALEX bands: FUV, NUV
+# * Stromgren bands: u_stromgren, v_stromgren, b_stromgren, y_stromgren
+# * Gaia EDR3: G, BP, RP
+# * 2MASS: J, H, Ks
+# * Skymapper: u_skymapper, v_skymapper g_skymapper r_skymapper i_skymapper z_skymapper
+# * TESS: TESS
+# * Johnson/Cousins: U, B, V, R, I
+# 'value' (float): Flux ratio value. Must be greater than 0.
+# 'error' (float): Error in flux ratio.
+
+## Extra data
+# Magnitudes not read automatically from common catalogs; measured in the AB magnitude scale.
+# There is no need to input Galex, Gaia, 2MASS and WISE magnitudes.
+# 'tag' (str): Unique name for measurement, can be same as band
+# 'type' (str): Bandpass name.
+# 'mag' (float): Value and error for the magnitude
+# 'zp' (float): Zero point of magnitude measurement and its error
+# 'file' (str): Must be ascii. 2 columns: wave (in angstrom) & response (normalised).
+
+## Colors
+# 'tag' (str): Unique name for measurement, can be same as color ID
+# 'type' (str): Color name. Only Strömgren b-y ('by'), m1 ('m1'), c1 ('c1'), and Gaia BP-RP ('BPRP')
+# 'color' (float): color value and error.
