@@ -432,7 +432,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         print(f.format(*(tuple(params) + (lnlike,))))
     if np.isfinite(lnlike):
         if blobs:
-            return lnlike + lnprior, *blob_data
+            return (lnlike + lnprior, *blob_data)
         else:
             return lnlike + lnprior
     else:
