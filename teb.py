@@ -58,9 +58,13 @@ def inputs(argv):
 if __name__ == "__main__":
 
     print("""
-    teb -- a python tool for calculating fundamental effective temperatures
+    teb -- a python tool for calculating fundamental effective temperatures for stars in eclipsing binaries
     
-    [ Space for full intro text here ]
+    Written by N. J. Miller and P. F. L. Maxted (2020-21)
+    For full details on the method, see Miller, Maxted & Smalley (2020) and Miller et al (2022)
+    
+    Most recent version of teb is stored at https://github.com/nmiller95/teb
+    Contact nikkimillerastro@gmail.com with questions or improvements
     
     """)
 
@@ -162,15 +166,16 @@ if __name__ == "__main__":
     print("Finding initial solution with Nelder-Mead optimisation...")
     soln = minimize(nll, params, args=args, method='Nelder-Mead')
 
-    if config_dict['override_initial_optimisation']:
-        if config_dict['apply_colors']:
-            soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
-                                  ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l'],
-                                  config_dict['sigma_c']] + list(soln['x'][8:]))
-        else:
-            soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
-                                  ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l']]
-                                 + list(soln['x'][7:]))
+    # Deprecated: overriding intial optimisation to set initial MCMC parameters as input values
+    # if config_dict['override_initial_optimisation']:
+    #     if config_dict['apply_colors']:
+    #         soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
+    #                               ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l'],
+    #                               config_dict['sigma_c']] + list(soln['x'][8:]))
+    #     else:
+    #         soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
+    #                               ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l']]
+    #                              + list(soln['x'][7:]))
 
     # Print solutions
     for pn, pv in zip(parname, soln.x):
