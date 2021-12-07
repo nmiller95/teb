@@ -274,6 +274,8 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         len_params = 8
         if sigma_col < 0:
             return -np.inf
+    else:
+        sigma_col = None
 
     # Get wave and flux information from spec1 and spec2 objects
     wave = spec1.waveset
@@ -331,12 +333,13 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
 
     # Synthetic vs observed colours and magnitudes
     if config_dict['apply_colors']:
-        chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)  # TODO: fix this warning
+        chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)
     else:
         chisq, lnlike_m = flux2mag(wave, flux, sigma_ext)
 
     if verbose:
         print('Magnitudes')
+        print('Band    Pivot     Observed     Calculated     O-C')
         for k in flux2mag.syn_mag.keys():
             o = flux2mag.obs_mag[k]
             c = flux2mag.syn_mag[k]
@@ -344,6 +347,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
             print("{:6s} {:6.0f} {:6.3f} {:6.3f} {:+6.3f}".format(k, w, o, c, o-c))
         if config_dict['apply_colors']:
             print('Colours')
+            print('Band    Observed     Calculated     O-C')
             for k in flux2mag.syn_col.keys():
                 o = flux2mag.obs_col[k]
                 c = flux2mag.syn_col[k]
@@ -354,6 +358,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     blob_data = []
     if verbose:
         print('Flux ratios')
+        print('Band  Synthetic  Observed +/- Error')
     for k in lratios.keys():
         R = lratios[k]['R']
         if lratios[k]['photon']:
@@ -427,7 +432,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         print(f.format(*(tuple(params) + (lnlike,))))
     if np.isfinite(lnlike):
         if blobs:
-            return (lnlike + lnprior, *blob_data)
+            return lnlike + lnprior, *blob_data
         else:
             return lnlike + lnprior
     else:
