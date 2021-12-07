@@ -240,8 +240,11 @@ if __name__ == "__main__":
                     verbose=True)
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
-    n_photometry_data = 27
-    n_parameters = 7  # TODO: this is hacky, doesn't work if colors (7 --> 8)
+    n_photometry_data = 27  # TODO: this is not always true
+    if config_dict['apply_colors']:
+        n_parameters = 8
+    else:
+        n_parameters = 7
     if config_dict['distortion'] == 1:
         n_coeffs_total = nc
     elif config_dict['distortion'] == 2:
