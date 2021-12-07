@@ -1,56 +1,71 @@
-### Core parameters to configure the temperature method.
-name: ASAS_J051753-5406.0  # Target name; must be resolvable by SIMBAD
-run_id: test-override  # Prefix used in output save file
+### Configure the main teb code here.
+## Read the guidance at the bottom of this file before use.
 
-# Configure the method
-distortion: 1                       # 0 = no distortion applied, 1 = single distortion function for both stars,
-                                    # 2 = each star's SED distorted separately.
-n_coeffs: 1                         # Number of distortion coefficients to use. Use 0 for a simple SED fit.
-apply_ebv_prior: True               # Whether to apply the E(B-V) prior specified below
-apply_fratio_prior: True            # Whether to apply the NIR flux ratio priors
-apply_colors: False                 # Whether to include colors data
-sigma_ext: 0.008                    # External noise on magnitude data
-sigma_l: 0.01                       # External noise on flux ratios
-sigma_c: 0.005                      # External noise on colors
-override_initial_optimisation: False # Option to use input params as MCMC starting point instead of Nelder-Mead # TODO: this doesn't work
+## Target and file names
+name: ASAS_J051753-5406.0     # Target name; must be resolvable by SIMBAD
+run_id: test-override         # Prefix used in output save file
 
+## Physical properties of the binary stars
+teff1: 6410                   # Best estimate of T_eff,1, in Kelvin
+teff2: 6300                   # Best estimate of T_eff,2, in Kelvin
+logg1: 4.3                    # Surface gravity for primary star, in cgs.
+logg2: 4.5                    # Surface gravity for secondary star, in cgs.
+m_h: -0.1                     # Metallicity for both stars.
+aFe: 0.0                      # Alpha fraction for both stars.
+r1:                           # Primary star radius and error, in solar units
+  - 1.935
+  - 0.020
+r2:                           # Secondary star radius and error, in solar units
+  - 1.181
+  - 0.014
+plx:                          # Gaia EDR3 parallax and error, in mas
+  - 2.6256
+  - 0.014
+ebv:                          # Prior on interstellar E(B-V) and error
+  - 0.00269
+  - 0.00119
+
+## Configuration parameters for the teb method
+# Model SED source and distortion
+model_sed: bt-settl           # Which model SEDs to use (bt-settl, bt-settl-cifist, coelho-sed)
+binning: 50                   # Wavelength resolution of model SED, in Angstrom
+distortion: 2                 # Type of distortion to use:
+                              # 0 = no distortion applied (simple SED fit)
+                              # 1 = single distortion function for both stars (not recommended)
+                              # 2 = each star's SED distorted separately (recommended)
+n_coeffs: 3                   # Number of distortion coefficients to use.
+# Priors and data to include
+apply_ebv_prior: True         # Put a prior on E(B-V) based on the provided value and error?
+apply_fratio_prior: False     # Calculate and apply priors on flux ratios in the near-IR?
+apply_colors: False           # Include any colors data in photometry_data.yaml?
+sigma_ext: 0.008              # Prior on external noise on magnitude data
+sigma_l: 0.01                 # Prior on external noise on flux ratios
+sigma_c: 0.005                # Prior on external noise on colors
 # MCMC and display options
-mcmc_n_steps: 500            # Number of steps to use in MCMC simulations
+mcmc_n_steps: 500             # Number of steps to use in MCMC simulations
 mcmc_n_walkers: 256           # Number of walkers to use in MCMC simulations
 show_plots: True              # Whether to generate convergence, corner and final SED plots
 save_plots: True              # Whether to save these plots in output directory
-corner_exclude_coeffs: False  # Whether to exclude distortion coeffs from being displayed in corner plot
-                              # (recommended for large values of 'n_coeffs')
+corner_exclude_coeffs: False  # Whether to exclude distortion coeffs from being displayed
+                              # in corner plot (recommended for large values of 'n_coeffs')
 
-# Physical parameters of the two stars
-teff1: 6410   # Best value of T_eff,1, in Kelvin
-teff2: 6300   # Best value of T_eff,2, in Kelvin
-plx:
-  - 2.6256    # Gaia EDR3 parallax and error, in milliarcseconds
-  - 0.014
-r1:
-  - 1.935     # Primary radius and error, in solar units
-  - 0.020
-r2:
-  - 1.181     # Secondary radius and error, in solar units
-  - 0.014
-ebv:
-  - 0.00269   # Prior on interstellar E(B-V) and error
-  - 0.00119
+### HOW TO USE THIS CONFIGURATION FILE
 
-# Starting values of stellar models to use as basis for integrating function  # TODO consider making this a readme
-# NB: not all teff-logg combinations supported by all model catalogs. Check URL for full coverage info.
-# BT-Settl: full wavelength range, detailed logg-teff coverage, M/H = [0.5, 0.3, 0.0, -0.5, -1.0, ..., -4.0]
+## A note on the stellar radii
+# If you have very precise measurements for radii (0.2% or better), these should technically be the Rosseland radii
+
+## A note on the distortion type
+# Using a single set of distortion coefficients will reduce the Bayesian Information Criterion on the fit BUT
+# will fix the flux ratio at a constant value for all wavelengths. For a better approach use 2.
+
+## A note on the model SEDs
+# BT-Settl, BT-Settl-CIFIST and to a lesser extent, Coelho SED models are supported by teb
+# teb can integrate between T_eff, log(g) and [M/H] if given value != existing model SED
+# N.B. not all T_eff-log(g) combinations are supported by all model catalogs.
+# * BT-Settl: Asplund et al. (2009) solar abundances. M/H = [0.5, 0.3, 0.0, -0.5, -1.0, ..., -4.0]
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl
-# BT-Settl-CIFIST: Caffau et al. (2011) solar abundances, full wavelength, detailed logg-teff, only M/H=0.
+# * BT-Settl-CIFIST: Caffau et al. (2011) solar abundances, only [M/H] = 0. teb will overwrite [M/H] if != 0.
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist
-# Coelho SED: limited range 130nm - 10um, sparser teff-logg, M/H = [0.2, 0.0, -0.1, -0.3, -0.5, -0.8, -1.0, -1.3]
+# * Coelho SED: limited range 130nm - 10um, sparse teff-logg, M/H = [0.2, 0.0, -0.1, -0.3, -0.5, -0.8, -1.0, -1.3]
 # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed
-model_sed: bt-settl     # Which model SEDs to use. Libraries supported: bt-settl, bt-settl-cifist, coelho-sed
-binning: 50   # Wavelength resolution to use, in Angstroms.
-# The code will use teff1, teff2 and interpolate the models.
-logg1: 4.3    # Surface gravity for primary star, in cgs.
-logg2: 4.5    # Surface gravity for secondary star, in cgs.
-# If model_sed == bt-settl-cifist, if these != 0 they will be automatically overwritten as 0
-m_h: -0.1     # Metallicity for both stars.
-aFe: 0.0      # Alpha fraction for both stars. # TODO add guidance for this
+# Using these SEDs may give spurious results due to the limited wavelength range
