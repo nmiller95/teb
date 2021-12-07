@@ -310,7 +310,6 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         # Makes new distortion polynomial for second star
         distort2 = np.zeros_like(flux2)
         for n, c in enumerate(params[len_params+nc:len_params+2*nc:]):
-            # TODO: check this should indeed be using secondary coeffs or whether the primary ones were deliberate
             if abs(c) > 1:
                 return -np.inf  # Check distortion coefficients are between -1 and +1
             distort2 = distort2 + c * legendre(n + 1)(x)
@@ -445,7 +444,7 @@ def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps
         Starting values as list
     config_dict: dict
         Dictionary of configuration parameters from config.yaml
-    least_squares_solution: `scipy.optimize.OptimizeResult`  # TODO: make this optional so it can be overridden
+    least_squares_solution: `scipy.optimize.OptimizeResult`
         Output of minimization
     n_steps: int, optional
         Number of MCMC simulations to perform. Default = 1000.
