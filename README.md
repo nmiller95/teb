@@ -33,7 +33,12 @@ Plus standard libraries: matplotlib, scipy, numpy, yaml, cpickle, os, warnings
 Set up the configuration yaml files with your parameters then run the main script.
 
 ```bash
-$ python3 teb.py
+$ python3 teb.py -c <configfile> -p <photometryfile> -f <frpfile>
+```
+
+Full details of the usage can be found with the command
+```bash
+$ python3 teb.py --help
 ```
 
 ### A note on stellar models
