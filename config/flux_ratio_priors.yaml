@@ -1,32 +1,36 @@
 ### Adjust your parameters for the flux ratio prior calculations here.
-# The size of search range should reflect the uncertainty on the parameter plus a little
-# extra, e.g. at least twice the error bar. If unsure about whether to use lin or quad,
-# check by plotting V-K colour against catalog temperature.
-#TODO: Include option to restrict metallicity.
-#TODO: Include option for single fit for stars with similar parameters.
-#
-# Linear (lin) or quadratic (quad) fit to the V-K vs. Teff diagram
-method: quad
-# Flux ratio of the binary, flux2/flux1
-flux_ratio: 1.03
-# Nominal temperature for the primary & secondary stars to use in initial flux ratio prior calculation
-teff1: 6300
-teff2: 6100
-# Range of interstellar reddening to restrict reference star search by
-E(B-V):
+## Read the guidance at the bottom of this file before use.
+
+## Initial settings
+method: quad         # Type of fit to the V-K vs. Teff diagram
+flux_ratio: 1.11     # V-band flux ratio of binary, i.e. flux2/flux1
+teff1: 6500          # Nominal effective temperature of primary (K)
+teff2: 6350          # Nominal effective temperature of secondary (K)
+
+## Ranges to restrict subset of reference stars by
+E(B-V):              # Interstellar reddening range
   - -1.0
   - 0.01
-# Range of surface gravities to restrict reference star search
-logg1:
+logg1:               # Primary star surface gravity range (cgs)
   - 3.5
   - 4.5
-logg2:
+logg2:               # Secondary star surface gravity range (cgs)
   - 3.8
   - 4.8
-# Range of temperatures to restrict reference star search by
-tref1:
-  - 5400
+tref1:               # Primary star effective temperature range (K)
+  - 5800
+  - 6800
+tref2:               # Secondary star effective temperature range (K)
+  - 5500
   - 6600
-tref2:
-  - 5300
-  - 6500
+
+
+### HOW TO USE THIS CONFIGURATION FILE
+# teff1, teff2 are the nominal temperatures used to calculate the initial flux ratio priors
+
+# If unsure about whether to use a linear (lin) or quadratic (quad) fit, check by plotting
+# V-K colour against catalog temperature for your subset of stars in the GCS III and WISE catalog.
+
+# Specify the range of temperatures, surface gravities and interstellar reddening to restrict the sample by.
+# The size of search range should reflect the uncertainty on the parameter plus a some extra buffer,
+# e.g. at least twice the error bar.
