@@ -19,6 +19,7 @@ from flint import ModelSpectrum
 from flux2mag import Flux2mag
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
     run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, synthetic_optical_lratios
+from make_config_files import make_config, make_photometry_data, make_flux_ratio_priors
 
 
 def inputs(argv):
@@ -29,11 +30,15 @@ def inputs(argv):
         print('If no files are specified, the defaults are: \n--config = \"config.yaml\"'
               '\n--photometry = \"photometry_data.yaml\" \n--frp = \"flux_ratio_priors.yaml\"')
         print('In the case you want to try a fit with synthetic UVBRI flux ratios, add \"--synth\"')
+        print('\nYou can create empty configuration files using')
+        print('teb.py -m <filename> or teb.py --makefile <filename>')
+        print('Filename extension does not need to be specified.\n')
 
     c_file, p_file, f_file = None, None, None
     synth_lratios = False
     try:
-        opts, args = getopt.getopt(argv, "hc:p:f:s:", ["help", "config=", "photometry=", "frp=", "synth"])
+        opts, args = getopt.getopt(argv, "hc:p:f:s:m:",
+                                   ["help", "config=", "photometry=", "frp=", "synth", "makefile="])
     except getopt.GetoptError as err:
         print(err)
         usage()
@@ -50,6 +55,11 @@ def inputs(argv):
             f_file = arg
         elif opt in ("-s", "--synth"):
             synth_lratios = True
+        elif opt in ("-m", "--makefile"):
+            make_config(arg)
+            make_photometry_data(arg)
+            make_flux_ratio_priors(arg)
+            sys.exit()
         else:
             assert False, 'unhandled option'
     return c_file, p_file, f_file, synth_lratios
