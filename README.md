@@ -36,7 +36,12 @@ Set up the configuration yaml files with your parameters then run the main scrip
 $ python3 teb.py -c <configfile> -p <photometryfile> -f <frpfile>
 ```
 
-Full details of the usage can be found with the command
+You can make an empty set of configuration files using the command
+```bash
+$ python3 teb.py -c <newfile>
+```
+
+Full details of the usage can be found with the help command
 ```bash
 $ python3 teb.py --help
 ```
