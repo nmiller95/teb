@@ -70,7 +70,7 @@ class Flux2mag:
             'NUV': ufloat(-48.60, 0.154),
             'G': ufloat(25.8010, 0.0028),
             'BP': ufloat(25.3540, 0.0023),
-            'RP': ufloat(24.7627, 0.0016),
+            'RP': ufloat(25.1040, 0.0016),
             'J': ufloat(-0.025, 0.005),
             'H': ufloat(+0.004, 0.005),
             'Ks': ufloat(-0.015, 0.005),
