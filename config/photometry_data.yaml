@@ -38,8 +38,8 @@ extra_data:
       - 11.7698
       - 0.0091
     zp:
-      - -48.346
-      - 0.216
+      - -48.1459
+      - 0.2185
     file: Response/SkyMapper_SkyMapper.u.dat
   - tag: v
     type: skymapper_v
@@ -47,8 +47,8 @@ extra_data:
       - 11.3121
       - 0.0105
     zp:
-      - -48.51
-      - 0.024
+      - -48.5265
+      - 0.1016
     file: Response/SkyMapper_SkyMapper.v.dat
 
 # Photometric colors
