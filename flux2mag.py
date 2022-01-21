@@ -61,7 +61,7 @@ class Flux2mag:
 
         self.name = name
 
-        # Zero-point data as a dictionary
+        # Zero-point (AB magnitude system) information as a dictionary
         # Error in "zero-point" for GALEX FUV & NUV are RMS from Camarota & Holberg, 2014
         # N.B. For WISE, these are offsets from Vega to AB magnitudes from Jarret et al.
         #   "This Vega basis has an overall systematic uncertainty of ∼1.45%." (0.016 mag)
@@ -293,7 +293,7 @@ class Flux2mag:
                 pass
 
         # Calculate synthetic magnitude for Gaia bands
-        p_a = 0.7278
+        p_a = 0.7278  # collecting (pupil) area of Gaia
         hc9 = 1.986445824e-16  # 10^9 hc
         # /10000 is conversion from erg/s/cm^2/A to W/m^2/nm
         for b in ['G', 'BP', 'RP']:
