@@ -68,13 +68,14 @@ def inputs(argv):
 if __name__ == "__main__":
 
     print("""
-    teb -- a python tool for calculating fundamental effective temperatures for stars in eclipsing binaries
+    teb -- a python tool for calculating fundamental effective temperatures for 
+    stars in eclipsing binaries
     
     Written by N. J. Miller and P. F. L. Maxted (2020-21)
-    For full details on the method, see Miller, Maxted & Smalley (2020) and Miller et al (2022)
+    Please cite: Miller, Maxted & Smalley (2020) and Miller, Maxted et al (2022)
     
     Most recent version of teb is stored at https://github.com/nmiller95/teb
-    Contact nikkimillerastro@gmail.com with questions or improvements
+    Contact nikkimillerastro@gmail.com with questions or suggestions
     
     """)
 
