@@ -3,6 +3,7 @@
 
 ## Initial settings
 method: quad         # Type of fit to the V-K vs. Teff diagram
+flux_ratio: 0.35     # V-band flux ratio of binary, i.e. flux2/flux1
 teff1: 6500          # Nominal effective temperature of primary (K)
 teff2: 6350          # Nominal effective temperature of secondary (K)
 
@@ -25,6 +26,8 @@ tref2:               # Secondary star effective temperature range (K)
 
 ### HOW TO USE THIS CONFIGURATION FILE
 # teff1, teff2 are the nominal temperatures used to calculate the initial flux ratio priors.
+# flux_ratio is a starting value that will quickly become irrelevant as teb runs.
+# It's only really important in [deprecated method] not recommended for normal use of teb.
 
 # If unsure about whether to use a linear (lin) or quadratic (quad) fit, check by plotting
 # V-K colour against catalog temperature for your subset of stars in the GCS III and WISE catalog.
