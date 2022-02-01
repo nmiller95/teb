@@ -68,9 +68,9 @@ class Flux2mag:
         self.zp = {
             'FUV': ufloat(-48.60, 0.134),
             'NUV': ufloat(-48.60, 0.154),
-            'G': ufloat(25.8010, 0.0028),
-            'BP': ufloat(25.3540, 0.0023),
-            'RP': ufloat(25.1040, 0.0016),
+            'G': ufloat(25.6873668671, 0.0027553202),  # now in Vega system
+            'BP': ufloat(25.3385422158, 0.0027901700),  # now in Vega system
+            'RP': ufloat(24.7478955012, 0.0037793818),  # now in Vega system
             'J': ufloat(-0.025, 0.005),
             'H': ufloat(+0.004, 0.005),
             'Ks': ufloat(-0.015, 0.005),
