@@ -15,7 +15,7 @@ $ git clone https://github.com/nmiller95/teb.git
 
 ## Requirements
 
-Developed in anaconda python 3.7
+Developed in anaconda python 3.7.
 
 - [astropy](https://pypi.org/project/astropy/) 4.2.1 or later
 - [synphot](https://pypi.org/project/synphot/) 1.0.1 or later
@@ -38,7 +38,7 @@ $ python3 teb.py -c <configfile> -p <photometryfile> -f <frpfile>
 
 You can make an empty set of configuration files using the command
 ```bash
-$ python3 teb.py -c <newfile>
+$ python3 teb.py -m <newfile>
 ```
 
 Full details of the usage can be found with the help command
