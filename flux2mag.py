@@ -50,13 +50,13 @@ class Flux2mag:
                 * color: `uncertainties.ufloat`
                     Observed color with standard error.
                 * zp: `uncertainties.ufloat`
-                    Colour zero-point and standard error.  # TODO: Include help for this.
+                    Colour zero-point and standard error.
                 * wave: array_like
                     Wavelength array for response function, in angstrom
                 * resp: array_like
                     Response function
                 * vega_zp: dict
-                    Contains zero-points of the component passbands, e.g. u,b,v,y, from Vega # TODO: Make clearer
+                    Contains zero-points for magnitudes used to construct colors, e.g. u,b,v,y, in Vega system
         """
 
         self.name = name
@@ -194,7 +194,7 @@ class Flux2mag:
                     x['wave'] = gaia_w
                     x['resp'] = gaia_r
                     x['zp'] = ufloat(0.0083, 0.0021)
-                    x['vega_zp'] = gaia_v  # TODO: This should come from "flux integrals for reference vega spectrum"
+                    x['vega_zp'] = gaia_v  # "flux integrals for reference vega spectrum"
 
             self.colors_data = colors_data
 
@@ -263,9 +263,9 @@ class Flux2mag:
 
         Parameters
         ----------
-        wave: `synphot.SourceSpectrum.waveset`  # TODO: check this
+        wave: `synphot.SourceSpectrum.waveset`
             Wavelength range over which the flux is defined, in Angstrom
-        f_lambda: array_like  # TODO: check this
+        f_lambda: array_like
             Must be call-able with argument lambda = wavelength in Angstrom
         sig_ext: float, optional
             Amount of external noise to the magnitudes
