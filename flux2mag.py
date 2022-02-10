@@ -69,9 +69,9 @@ class Flux2mag:
         self.zp = {
             'FUV': ufloat(-49.43, 0.374),  # ufloat(-48.60, 0.134),
             'NUV': ufloat(-49.04, 0.883),  # ufloat(-48.60, 0.154),
-            'G': ufloat(25.6873668671, 0.0027553202),  # now in Vega system
-            'BP': ufloat(25.3385422158, 0.0027901700),  # now in Vega system
-            'RP': ufloat(24.7478955012, 0.0037793818),  # now in Vega system
+            'G': ufloat(25.6874, 0.0028),
+            'BP': ufloat(25.3385, 0.0028),
+            'RP': ufloat(24.7479, 0.0038),
             'J': ufloat(-0.025, 0.005),
             'H': ufloat(+0.004, 0.005),
             'Ks': ufloat(-0.015, 0.005),
@@ -132,7 +132,7 @@ class Flux2mag:
 
         # ALLWISE - QE-based RSRs from
         # http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
-        for b in ('W1', 'W2', 'W3', 'W4'):  # TODO: exclude W3, W4 if Coelho is selected
+        for b in ('W1', 'W2', 'W3', 'W4'):
             t = Table.read("Response/RSR-{}.txt".format(b),
                            format='ascii', names=['w', 'T', 'e'])
             R[b] = interp1d(t['w'] * 1e4, t['T'], bounds_error=False, fill_value=0)
@@ -157,7 +157,7 @@ class Flux2mag:
         # Prepare colours data (if given)
         if colors_data:
             for x in colors_data:
-                # Stromgren colours
+                # Strömgren colours
                 if x['type'] in ['by', 'm1', 'c1']:
                     stromgren_w, stromgren_r = {}, {}
                     for m in ('u', 'v', 'b', 'y'):
@@ -184,7 +184,7 @@ class Flux2mag:
                     x['resp'] = stromgren_r
                     x['vega_zp'] = stromgren_v
 
-                # Gaia colour
+                # Gaia colour TODO: implement correctly or remove the feature
                 elif x['type'] == 'BPRP':
                     names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
                     t = Table.read('Response/GaiaEDR3_passbands.dat', names=names, format='ascii')
