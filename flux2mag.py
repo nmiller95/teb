@@ -61,13 +61,14 @@ class Flux2mag:
 
         self.name = name
 
-        # Zero-point (AB magnitude system) information as a dictionary
-        # Error in "zero-point" for GALEX FUV & NUV are RMS from Camarota & Holberg, 2014
+        # Zero-point (Vega magnitude system) information as a dictionary
+        # Zero-point for GALEX bands is from Camarota & Holberg with correction made using the scatter of points
+        # in Figure 4 about the observed magnitude of the binary TODO: make functions to generalise this
         # N.B. For WISE, these are offsets from Vega to AB magnitudes from Jarret et al.
         #   "This Vega basis has an overall systematic uncertainty of ∼1.45%." (0.016 mag)
         self.zp = {
-            'FUV': ufloat(-48.60, 0.134),
-            'NUV': ufloat(-48.60, 0.154),
+            'FUV': ufloat(-49.43, 0.374),  # ufloat(-48.60, 0.134),
+            'NUV': ufloat(-49.04, 0.883),  # ufloat(-48.60, 0.154),
             'G': ufloat(25.6873668671, 0.0027553202),  # now in Vega system
             'BP': ufloat(25.3385422158, 0.0027901700),  # now in Vega system
             'RP': ufloat(24.7478955012, 0.0037793818),  # now in Vega system
