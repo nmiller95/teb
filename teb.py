@@ -56,6 +56,7 @@ def inputs(argv):
         elif opt in ("-s", "--synth"):
             synth_lratios = True
         elif opt in ("-m", "--makefile"):
+            print(f'Generating blank configuration files with tag: {arg}\n')
             make_config(arg)
             make_photometry_data(arg)
             make_flux_ratio_priors(arg)
@@ -245,13 +246,20 @@ if __name__ == "__main__":
     print_mcmc_solution(flat_samples, parname)
 
     lnlike = lnprob(best_pars, f2m, flux_ratios,
-                    theta1_in, theta2_in, spec1, spec2,  # TODO: this should print *output* theta
+                    theta1_in, theta2_in, spec1, spec2,  # TODO: this should print *output* theta?
                     ebv_prior, redlaw, nc,
                     config_dict=config_dict, frp_coeffs=coeffs,
                     verbose=True)
     print('Final log-likelihood = {:0.2f}'.format(lnlike))
 
-    n_photometry_data = 27  # TODO: this is not always true
+    # AIC and BIC calculation
+    # Counts the number of photometry data used in order to calculate the AIC and BIC
+    n_photometry_data = len(f2m.obs_mag)
+    if flux_ratios:
+        n_photometry_data += len(flux_ratios)
+    if frp_dictionary:
+        n_photometry_data += len(frp_dictionary)
+    # Counts the number of other parameters used in the fit
     if config_dict['apply_colors']:
         n_parameters = 8
     else:
