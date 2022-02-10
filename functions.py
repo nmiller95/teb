@@ -89,7 +89,8 @@ def angular_diameters(config_dict):
     Angular diameters for primary and secondary stars as `uncertainties.ufloat` objects
     """
     # Parallax load and apply zeropoint
-    gaia_zp = ufloat(-0.017, 0.011)  # Gaia EDR3. ZP error fixed at DR2 value for now
+    gaia_zp = ufloat(-0.0055, 0.014)  # Gaia EDR3 custom ZP for CPD-54 810 from Lindegren+Flynn correction TODO automate
+    print(f'Applied Gaia parallax zero point correction {gaia_zp:0.3f}')
     plx = list_to_ufloat(config_dict['plx']) - gaia_zp
 
     # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
@@ -386,12 +387,17 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     # Combine log likelihoods calculated so far
     lnlike = lnlike_m + lnlike_theta + lnlike_l
     if config_dict['apply_colors']:
-        lnlike += lnlike_c  # Ignore warning, pycharm is being fussy
+        lnlike += lnlike_c
 
     # Applying prior on interstellar reddening (if relevant)
     lnprior = 0
     if config_dict['apply_ebv_prior']:
         lnprior += -0.5 * (ebv - ebv_prior.n) ** 2 / ebv_prior.s ** 2
+
+    # Applying prior on radius ratio (if needed)
+    if config_dict['apply_k_prior']:  # TODO implement this in config file template & generation function
+        k_prior = list_to_ufloat(config_dict['k'])
+        lnprior += -0.5*(theta2/theta1 - k_prior.n)/k_prior.s ** 2
 
     # Applying priors on NIR flux ratios (if relevant)
     if config_dict['apply_fratio_prior']:
@@ -462,10 +468,17 @@ def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps
     """
     nc = config_dict['n_coeffs']
     th1, th2 = angular_diameters(config_dict)
-    steps = [25, 25,  # T_eff,1, T_eff,2 # WAS 25, 25
-             th1.s, th2.s,  # theta_1 ,theta_2
-             0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
-             *[0.01] * nc, *[0.01] * nc]  # c_1,1 ..   c_2,1 ..
+    # Fix problem with number of elements in steps if sigma_c, sigma_l are not parameters
+    if config_dict['apply_colors']:
+        steps = np.array([25, 25,  # T_eff,1, T_eff,2
+                          th1.s, th2.s,  # theta_1 ,theta_2
+                          0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
+                          *[0.01] * nc, *[0.01] * nc])  # c_1,1 ..   c_2,1 ..
+    else:
+        steps = np.array([25, 25,  # T_eff,1, T_eff,2
+                          th1.s, th2.s,  # theta_1 ,theta_2
+                          0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l
+                          *[0.01] * nc, *[0.01] * nc])  # c_1,1 ..   c_2,1 ..
 
     ndim = len(least_squares_solution.x)
     pos = np.zeros([n_walkers, ndim])
@@ -554,7 +567,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
                     frp_coeffs, config_dict, flat_samples):
     """
     Generates plot showing final integrating functions and distortion for both stars
-
+    # TODO: fix me
     Parameters
     ----------
     best_pars: list
