@@ -183,24 +183,34 @@ def flux_ratio_priors(Vrat, teff1, teff2, tref1, tref2, coeffs, method='quad'):
         # Return a dictionary of ufloat priors on flux ratios
         d = {}
         for b in coeffs.keys():
-            col1 = coeffs[b]['c1'] + coeffs[b]['m1'] * (teff1 - tref1) / 1000.0
-            col2 = coeffs[b]['c2'] + coeffs[b]['m2'] * (teff2 - tref2) / 1000.0
-            L = Vrat * 10 ** (0.4 * (col2 - col1))
-            e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
-            d[b] = ufloat(L, e_L)
+            # col1 = coeffs[b]['c1'] + coeffs[b]['m1'] * (teff1 - tref1) / 1000.0
+            # col2 = coeffs[b]['c2'] + coeffs[b]['m2'] * (teff2 - tref2) / 1000.0
+            # L = Vrat * 10 ** (0.4 * (col2 - col1))
+            # e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
+            # d[b] = ufloat(L, e_L)
+            x1 = (teff1 - tref1) / 1000
+            col1 = ufloat(coeffs[b]['c1'] + coeffs[b]['m1'] * x1, coeffs[b]['r1'])
+            x2 = (teff2 - tref2) / 1000
+            col2 = ufloat(coeffs[b]['c2'] + coeffs[b]['m2'] * x2, coeffs[b]['r2'])
+            d[b] = Vrat * 10 ** (0.4 * (col2 - col1))
         return d
 
     elif method == 'quad':
         # Return a dictionary of ufloat priors on flux ratios
         d = {}
         for b in coeffs.keys():
-            col1 = coeffs[b]['p01'] + coeffs[b]['p11'] * (teff1 - tref1) / 1000.0 \
-                + coeffs[b]['p21'] * ((teff1 - tref1) / 1000.0) ** 2
-            col2 = coeffs[b]['p02'] + coeffs[b]['p12'] * (teff2 - tref2) / 1000.0 \
-                + coeffs[b]['p22'] * ((teff2 - tref2) / 1000.0) ** 2
-            L = Vrat * 10 ** (0.4 * (col2 - col1))
-            e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
-            d[b] = ufloat(L, e_L)
+            # col1 = coeffs[b]['p01'] + coeffs[b]['p11'] * (teff1 - tref1) / 1000.0 \
+            #     + coeffs[b]['p21'] * ((teff1 - tref1) / 1000.0) ** 2
+            # col2 = coeffs[b]['p02'] + coeffs[b]['p12'] * (teff2 - tref2) / 1000.0 \
+            #     + coeffs[b]['p22'] * ((teff2 - tref2) / 1000.0) ** 2
+            # L = Vrat * 10 ** (0.4 * (col2 - col1))
+            # e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
+            # d[b] = ufloat(L, e_L)
+            x1 = (teff1 - tref1) / 1000
+            col1 = ufloat(coeffs[b]['p01'] + coeffs[b]['p11'] * x1 + coeffs[b]['p21'] * x1**2, coeffs[b]['r1'])
+            x2 = (teff2 - tref2) / 1000
+            col2 = ufloat(coeffs[b]['p02'] + coeffs[b]['p12'] * x2 + coeffs[b]['p22'] * x2**2, coeffs[b]['r2'])
+            d[b] = Vrat * 10 ** (0.4 * (col2 - col1))
         return d
     else:
         print("Invalid method specified. Use 'quad' or 'lin'.")
