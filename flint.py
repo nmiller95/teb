@@ -27,7 +27,7 @@ def make_tag(params):
     teff, logg, m_h, afe = params
     if m_h > 0:
         tfmt = "lte{:03.0f}-{:3.1f}+{:3.1f}a{:+3.1f}"
-        return tfmt.format(teff / 100, logg, m_h, afe)  # TODO: teff/100 might not be suitable for Coelho format
+        return tfmt.format(teff / 100, logg, m_h, afe)
     else:
         tfmt = "lte{:03.0f}-{:3.1f}-{:3.1f}a{:+3.1f}"
         return tfmt.format(teff / 100, logg, abs(m_h), afe)
@@ -47,7 +47,6 @@ def make_pathname(cache_path, params, source, binning):
         Name of model database being used. Models supported are:
         * bt-settl
         * bt-settl-cifist
-        * coelho-sed
     binning: int or None
         Size of bins in Angstrom
 
@@ -80,7 +79,6 @@ def load_spectrum_as_table(s, params, source):
         Name of model database being used. Models supported are:
         * bt-settl
         * bt-settl-cifist
-        * coelho-sed
 
     Returns
     -------
@@ -93,8 +91,6 @@ def load_spectrum_as_table(s, params, source):
     # Column names depend on source
     if source == 'bt-settl' or source == 'bt-settl-cifist':
         cond_alpha = s['alpha'] == afe
-    elif source == 'coelho-sed':
-        cond_alpha = s['afe'] == afe
     else:
         raise NameError("Specified model source is not supported.")
     # Restricts table to just the requested parameters
@@ -159,7 +155,6 @@ def valid_teff(s, params, source):
         Name of model database being used. Models supported are:
         * bt-settl
         * bt-settl-cifist
-        * coelho-sed
 
     Returns
     -------
@@ -180,15 +175,6 @@ def valid_teff(s, params, source):
             return False
         else:
             return True
-    elif source == 'coelho-sed':
-        if teff < 3000 or teff > 26000:
-            raise ValueError("Temperature outside range supported by Coelho SEDs. Must be 3000K <= Teff <= 26000K")
-        # Get list of temperatures supported
-        upper, lower = nearest_teff_models(s, params)
-        if teff == upper or teff == lower:
-            return True
-        else:
-            return False
 
 
 def nearest_m_h_models(s, params):
@@ -231,7 +217,6 @@ def valid_m_h(params, source):
         Name of model database being used. Models supported are:
         * bt-settl
         * bt-settl-cifist
-        * coelho-sed
 
     Returns
     -------
@@ -247,13 +232,6 @@ def valid_m_h(params, source):
             return False
     elif source == 'bt-settl-cifist':
         if m_h == 0.0:
-            return True
-        else:
-            return False
-    elif source == 'coelho-sed':
-        if m_h < -1.3 or m_h > 0.2:
-            raise ValueError("M/H outside range supported by Coelho SEDs. Must be -1.3 <= M/H <= 0.2")
-        if m_h in [-1.3, -1.0, -0.8, -0.5, -0.3, -0.1, 0.0, 0.2]:
             return True
         else:
             return False
@@ -338,7 +316,6 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
         Name of model database being used. Models supported are:
         * bt-settl
         * bt-settl-cifist
-        * coelho-sed
     cache_path: str or None
         Path to cache folder
     reload: bool
@@ -380,7 +357,6 @@ def interpolate_logg(s, params, source, cache_path, reload, binning):
         Name of model database being used. Models supported are:
         * bt-settl
         * bt-settl-cifist
-        * coelho-sed
     cache_path: str or None
         Path to cache folder
     reload: bool
@@ -419,7 +395,6 @@ def interpolate_m_h(s, params, source, cache_path, reload, binning):
             Name of model database being used. Models supported are:
             * bt-settl
             * bt-settl-cifist
-            * coelho-sed
         cache_path: str or None
             Path to cache folder
         reload: bool
@@ -487,7 +462,6 @@ class ModelSpectrum(SourceSpectrum):
             Name of model database being used. Models supported are:
             * bt-settl
             * bt-settl-cifist
-            * coelho-sed
 
         Returns
         -------
@@ -524,14 +498,6 @@ class ModelSpectrum(SourceSpectrum):
                       "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist")
                 service = vo.dal.SSAService(
                     "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl-cifist&"
-                )
-            elif source == 'coelho-sed':
-                print("Loading Coelho Synthetic stellar library (SEDs) model(s) (Coelho 2014, MNRAS 440, 1027C)\n"
-                      "CAUTION: Does not support wavelengths > 10um.\n"
-                      "For more information on these models, see "
-                      "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed")
-                service = vo.dal.SSAService(
-                    "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=coelho_sed&"
                 )
             else:
                 raise ValueError(source, "Specified model source is not supported.")
