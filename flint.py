@@ -25,12 +25,12 @@ def make_tag(params):
     String unique to the model
     """
     teff, logg, m_h, afe = params
-    if m_h > 0:
+    if m_h >= 0:
         tfmt = "lte{:03.0f}-{:3.1f}+{:3.1f}a{:+3.1f}"
-        return tfmt.format(teff / 100, logg, m_h, afe)
+        return tfmt.format(teff, logg, m_h, afe)  # TODO this format only supports 1000 < Teff < 9999
     else:
         tfmt = "lte{:03.0f}-{:3.1f}-{:3.1f}a{:+3.1f}"
-        return tfmt.format(teff / 100, logg, abs(m_h), afe)
+        return tfmt.format(teff, logg, abs(m_h), afe)
 
 
 def make_pathname(cache_path, params, source, binning):
