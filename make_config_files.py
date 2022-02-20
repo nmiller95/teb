@@ -47,7 +47,7 @@ def make_config(filename):
         c.write('\n')
         c.write('## Configuration parameters for the teb method\n')
         c.write('# Model SED source and distortion\n')
-        c.write('model_sed: bt-settl           # Model SEDs to use [bt-settl, bt-settl-cifist, coelho-sed]\n')
+        c.write('model_sed: bt-settl           # Model SEDs to use [bt-settl, bt-settl-cifist]\n')
         c.write('binning: 50                   # Wavelength resolution of model SED, in Angstrom\n')
         c.write('distortion: 2                 # Type of distortion to use:\n')
         c.write('                              # 0 = no distortion applied (simple SED fit)\n')
@@ -83,7 +83,7 @@ def make_config(filename):
         c.write('# will fix the flux ratio at a constant value for all wavelengths. For a better approach use 2.\n')
         c.write('\n')
         c.write('## A note on the model SEDs\n')
-        c.write('# BT-Settl, BT-Settl-CIFIST and to a lesser extent, Coelho SED models are supported by teb\n')
+        c.write('# BT-Settl and BT-Settl-CIFIST models are supported by teb\n')
         c.write('# teb can integrate between T_eff, log(g) and [M/H] if given value != existing model SED\n')
         c.write('# N.B. not all T_eff-log(g) combinations are supported by all model catalogs.\n')
         c.write('# * BT-Settl: Asplund et al. (2009) solar abundances. M/H = [0.5, 0.3, 0.0, -0.5, -1.0, ..., -4.0]\n')
@@ -91,10 +91,6 @@ def make_config(filename):
         c.write('# * BT-Settl-CIFIST: Caffau et al. (2011) solar abundances, only [M/H] = 0. teb will overwrite [M/H] '
                 'if != 0.\n')
         c.write('# http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist\n')
-        c.write('# * Coelho SED: limited range 130nm - 10um, sparse teff-logg, M/H = [0.2, 0.0, -0.1, -0.3, -0.5, '
-                '-0.8, -1.0, -1.3]\n')
-        c.write('# http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=coelho_sed\n')
-        c.write('# Using these SEDs may give spurious results due to the limited wavelength range\n')
 
 
 def make_photometry_data(filename):
