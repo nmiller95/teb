@@ -35,7 +35,7 @@ def make_config(filename):
         c.write('r2:                           # Secondary star radius and error, in solar units\n')
         c.write('  -\n')
         c.write('  -\n')
-        c.write('k:                            # Ratio of the stellar radii and error, from light curve fits\n')
+        c.write('k:                            # Ratio of the stellar radii and error, from light curve\n')
         c.write('  -\n')
         c.write('  -\n')
         c.write('plx:                          # Gaia EDR3 parallax and error, in mas\n')
