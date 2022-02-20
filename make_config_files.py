@@ -57,7 +57,7 @@ def make_config(filename):
         c.write('# Priors and data to include\n')
         c.write('apply_ebv_prior: True         # Put a prior on E(B-V)? Uses provided value and error.\n')
         c.write('apply_fratio_prior: True      # Calculate and apply priors on flux ratios in the near-IR?\n')
-        c.write('apply_k_prior: True           # Put a prior on the radius ratio (for totally eclipsing systems)\n')
+        c.write('apply_k_prior: True           # Put a prior on the radius ratio (total eclipses only)\n')
         c.write('apply_colors: False           # Include any colors data in photometry_data.yaml?\n')
         c.write('sigma_ext: 0.008              # Prior on external noise on magnitude data\n')
         c.write('sigma_l: 0.01                 # Prior on external noise on flux ratios\n')
