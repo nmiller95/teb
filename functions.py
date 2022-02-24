@@ -397,7 +397,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     # Applying prior on radius ratio (if needed)
     if config_dict['apply_k_prior']:  # TODO implement this in config file template & generation function
         k_prior = list_to_ufloat(config_dict['k'])
-        lnprior += -0.5*(theta2/theta1 - k_prior.n)/k_prior.s ** 2
+        lnprior += -0.5*((theta2/theta1 - k_prior.n)/k_prior.s) ** 2
 
     # Applying priors on NIR flux ratios (if relevant)
     if config_dict['apply_fratio_prior']:
