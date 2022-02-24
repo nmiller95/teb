@@ -4,8 +4,8 @@
 ## Initial settings
 method: quad         # Type of fit to the V-K vs. Teff diagram
 flux_ratio: 0.35     # V-band flux ratio of binary, i.e. flux2/flux1
-teff1: 6500          # Nominal effective temperature of primary (K)
-teff2: 6350          # Nominal effective temperature of secondary (K)
+teff1: 6450          # Nominal effective temperature of primary (K)
+teff2: 6300          # Nominal effective temperature of secondary (K)
 
 ## Ranges to restrict subset of reference stars by
 E(B-V):              # Interstellar reddening range
