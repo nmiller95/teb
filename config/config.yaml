@@ -37,6 +37,7 @@ n_coeffs: 3                   # Number of distortion coefficients to use.
 # Priors and data to include
 apply_ebv_prior: True         # Put a prior on E(B-V)? Uses provided value and error.
 apply_fratio_prior: True      # Calculate and apply priors on flux ratios in the near-IR?
+apply_k_prior: False          # Put a prior on the radius ratio (total eclipses only)
 apply_colors: False           # Include any colors data in photometry_data.yaml?
 sigma_ext: 0.008              # Prior on external noise on magnitude data
 sigma_l: 0.01                 # Prior on external noise on flux ratios
