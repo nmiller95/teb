@@ -219,7 +219,7 @@ if __name__ == "__main__":
     samples = sampler.get_chain()
     flat_samples = sampler.get_chain(discard=n_steps // 2, thin=8, flat=True)
 
-    show_plots = config_dict['show_plots']
+    show_plots = config_dict['show_plots']  # TODO: catch case where output folder doesn't exist
     if show_plots:
         # Convergence of chains plot for params excluding distortion coefficients
         convergence_plot(samples, parname, config_dict)
@@ -275,6 +275,7 @@ if __name__ == "__main__":
     print(f'AIC: {round(aic, 3)} \nBIC: {round(bic, 3)}')
 
     ############################################################
+    # TODO catch case where output folder does not exist
     f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}_{binning}A_bins.pkl"
     with open(f_name, 'wb') as output:
         pickle.dump(sampler, output)
