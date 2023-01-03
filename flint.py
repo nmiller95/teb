@@ -95,10 +95,13 @@ def load_spectrum_as_table(s, params, source):
         raise NameError("Specified model source is not supported.")
     # Restricts table to just the requested parameters
     s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
+    #print(s[0])
     try:
         url = str(s[0]['Spectrum'], 'utf-8')
     except TypeError:
         url = s[0]['Spectrum']
+    except KeyError:
+        url = s[0]['Access.Reference']
     except IndexError:
         raise FileNotFoundError(f"Spectrum with teff = {teff}, logg = {logg}, [M/H] = {m_h}, [a/Fe] = {afe} not found "
                                 f"in the {source} model catalog. \nCheck that your [M/H] and [a/Fe] are supported.")
