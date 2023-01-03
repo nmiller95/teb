@@ -65,7 +65,7 @@ def make_pathname(cache_path, params, source, binning):
     return model_file, model_file_0
 
 
-def load_spectrum_as_table(s, params, source):
+def load_spectrum_as_table(s, params, source):  # TODO still loads things it doesn't need to
     """
     Attempts to read a specific model from a source catalog of models
 
