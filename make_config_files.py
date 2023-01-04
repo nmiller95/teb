@@ -38,8 +38,8 @@ def make_config(filename):
         c.write('k:                            # Ratio of the stellar radii and error, from light curve\n')
         c.write('  -\n')
         c.write('  -\n')
-        c.write('plx:                          # Gaia EDR3 parallax and error, in mas\n')
-        c.write('  -\n')
+        c.write('plx:                          # Gaia DR3 parallax and error, in mas\n')
+        c.write('  -\n')  # TODO: not here, but generally, check the parallax ZP for DR3
         c.write('  -\n')
         c.write('ebv:                          # Prior on interstellar E(B-V) and error\n')
         c.write('  -\n')
