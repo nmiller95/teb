@@ -253,6 +253,10 @@ if __name__ == "__main__":
     bic = (n_coeffs_total + n_parameters) * np.log(n_photometry_data) - 2 * np.log(lnlike)
     print(f'AIC: {round(aic, 3)} \nBIC: {round(bic, 3)}')
 
+    # Prepare output directory to save plots and chain
+    if not os.path.isdir('output/'):
+        mkdir('output/')
+
     show_plots = config_dict['show_plots']
     if show_plots:
         # Convergence of chains plot for params excluding distortion coefficients
@@ -264,8 +268,6 @@ if __name__ == "__main__":
                      f"Model SED source: {config_dict['model_sed']}\n"
                      f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
         if config_dict['save_plots']:
-            if not os.path.isdir('output/'):
-                mkdir('output/')
             f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}" \
                      f"_{binning}A_bins_corner.png"
             plt.savefig(f_name)
