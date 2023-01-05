@@ -134,8 +134,8 @@ def make_photometry_data(filename):
         c.write('\n')
         c.write('# Photometric colors\n')
         c.write('# colors_data:\n')
-        c.write('#   - tag: BP-RP\n')
-        c.write('#     type: BPRP\n')
+        c.write('#   - tag: b-y\n')
+        c.write('#     type: by\n')
         c.write('#     color:\n')
         c.write('#       - \n')
         c.write('#       - \n')
@@ -167,7 +167,7 @@ def make_photometry_data(filename):
         c.write('\n')
         c.write('## Colors\n')
         c.write('# tag (str): Unique name for measurement, can be same as color ID\n')
-        c.write('# type (str): Color name. Only Strömgren b-y (by), m1 (m1), c1 (c1), and Gaia BP-RP (BPRP)\n')
+        c.write('# type (str): Color name. Only Strömgren b-y (by), m1 (m1), c1 (c1)\n')
         c.write('# color (float): color value and error.\n')
 
 
