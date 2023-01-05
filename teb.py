@@ -137,12 +137,14 @@ if __name__ == "__main__":
     model_library = config_dict['model_sed']
     binning = config_dict['binning']
     teff1, teff2 = config_dict['teff1'], config_dict['teff2']
+    if round(teff1) > 9999 or round(teff2) > 9999:
+        raise SystemExit("teb only supports Teff < 10000 K")
+    elif round(teff1) < 1000 or round(teff2) < 1000:
+        raise SystemExit("teb only supports Teff >= 1000 K")
     logg1, logg2 = config_dict['logg1'], config_dict['logg2']
-    # if logg1 % 0.5 or logg2 % 0.5:
-    #     raise ValueError("Invalid surface gravity - check allowed values in config.yaml")
     if model_library == 'bt-settl-cifist':
         m_h, aFe = (0.0, 0.0)
-    elif model_library == 'bt-settl' or model_library == 'coelho-sed':
+    elif model_library == 'bt-settl':
         m_h = config_dict['m_h']
         aFe = config_dict['aFe']
     else:
@@ -180,17 +182,6 @@ if __name__ == "__main__":
     print("Finding initial solution with Nelder-Mead optimisation...")
     soln = minimize(nll, params, args=args, method='Nelder-Mead')
 
-    # Deprecated: overriding intial optimisation to set initial MCMC parameters as input values
-    # if config_dict['override_initial_optimisation']:
-    #     if config_dict['apply_colors']:
-    #         soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
-    #                               ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l'],
-    #                               config_dict['sigma_c']] + list(soln['x'][8:]))
-    #     else:
-    #         soln['x'] = np.array([config_dict['teff1'], config_dict['teff2'], theta2_in.n, theta2_in.n,
-    #                               ebv_prior.n, config_dict['sigma_ext'], config_dict['sigma_l']]
-    #                              + list(soln['x'][7:]))
-
     # Print solutions
     for pn, pv in zip(parname, soln.x):
         print('{} = {}'.format(pn, pv))
@@ -221,7 +212,7 @@ if __name__ == "__main__":
     samples = sampler.get_chain()
     flat_samples = sampler.get_chain(discard=n_steps // 2, thin=8, flat=True)
 
-    # Prints best solution from MCMC
+    # Prints the best solution from MCMC
     print_mcmc_solution(flat_samples, parname)
 
     lnlike = lnprob(best_pars, f2m, flux_ratios,
@@ -281,7 +272,6 @@ if __name__ == "__main__":
         #                 redlaw, nc, frp_dictionary, config_dict, flat_samples)
 
     ############################################################
-    # TODO catch case where output folder does not exist
     f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}_{binning}A_bins.pkl"
     with open(f_name, 'wb') as output:
         pickle.dump(sampler, output)

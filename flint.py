@@ -26,8 +26,9 @@ def make_tag(params):
     """
     teff, logg, m_h, afe = params
     if m_h >= 0:
+        # if extending Teff range beyond 1000-9999 in the future, change this format
         tfmt = "lte{:03.0f}-{:3.1f}+{:3.1f}a{:+3.1f}"
-        return tfmt.format(teff, logg, m_h, afe)  # TODO this format only supports 1000 < Teff < 9999
+        return tfmt.format(teff, logg, m_h, afe)
     else:
         tfmt = "lte{:03.0f}-{:3.1f}-{:3.1f}a{:+3.1f}"
         return tfmt.format(teff, logg, abs(m_h), afe)
@@ -95,7 +96,7 @@ def load_spectrum_as_table(s, params, source):  # TODO still loads things it doe
         raise NameError("Specified model source is not supported.")
     # Restricts table to just the requested parameters
     s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
-    #print(s[0])
+    # print(s[0])
     try:
         url = str(s[0]['Spectrum'], 'utf-8')
     except TypeError:
@@ -331,7 +332,7 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     Spectrum that has been linearly interpolated between two nearest temperatures
     """
     teff, logg, m_h, afe = params
-    if m_h == -0.5:  # TODO: fix this bodge
+    if m_h == -0.5:  # TODO: fix this bodge - research boosting alpha fraction
         afe = 0.2
     elif m_h == 0.0:
         afe = 0.0
