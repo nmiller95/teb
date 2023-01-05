@@ -395,7 +395,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         lnprior += -0.5 * (ebv - ebv_prior.n) ** 2 / ebv_prior.s ** 2
 
     # Applying prior on radius ratio (if needed)
-    if config_dict['apply_k_prior']:  # TODO implement this in config file template & generation function
+    if config_dict['apply_k_prior']:
         k_prior = list_to_ufloat(config_dict['k'])
         lnprior += -0.5*((theta2/theta1 - k_prior.n)/k_prior.s) ** 2
 
@@ -623,7 +623,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
                  f"M/H = {config_dict['m_h']}, a/Fe = {config_dict['aFe']}", fontsize=14)
 
     # Integrating functions panel
-    ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C' # TODO: 1e12 might not work for Coelho
+    ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C'
     ax[0].semilogx(wave, 1e12 * f2, c='#ffa600', label='Secondary')  # c='#CEC814'
     ax[0].set(xlim=(1002, 299998), ylim=(-0.0, 0.25), yticks=(np.arange(0, 0.25, 0.05)),
               ylabel=r'$f_{\lambda}$  [10$^{-12}$ erg cm$^{-2}$ s$^{-1}$]')
