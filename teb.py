@@ -219,29 +219,6 @@ if __name__ == "__main__":
     samples = sampler.get_chain()
     flat_samples = sampler.get_chain(discard=n_steps // 2, thin=8, flat=True)
 
-    show_plots = config_dict['show_plots']  # TODO: catch case where output folder doesn't exist
-    if show_plots:
-        # Convergence of chains plot for params excluding distortion coefficients
-        convergence_plot(samples, parname, config_dict)
-
-        # Corner plot for all free parameters excluding distortion coefficients
-        fig = corner.corner(flat_samples, labels=parname)
-        fig.suptitle(f"Corner plot for {name} ({config_dict['run_id']}) \n"
-                     f"Model SED source: {config_dict['model_sed']}\n"
-                     f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
-        if config_dict['save_plots']:
-            f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}" \
-                     f"_{binning}A_bins_corner.png"
-            plt.savefig(f_name)
-        plt.show()
-
-        # Distortion plot with final SED for both stars  # TODO: fix this - hint below
-        # File "<ipython-input-8-52a4d834a98f>", line 49, in distortion_plot
-        #  redlaw, nc, config_dict, frp_coeffs, return_flux=True)
-        # ValueError: too many values to unpack (expected 5)
-        # distortion_plot(best_pars, f2m, flux_ratios, theta1_in, theta2_in, spec1, spec2, ebv_prior,
-        #                 redlaw, nc, frp_dictionary, config_dict, flat_samples)
-
     # Prints best solution from MCMC
     print_mcmc_solution(flat_samples, parname)
 
@@ -273,6 +250,29 @@ if __name__ == "__main__":
     aic = 2 * (n_coeffs_total + n_parameters) - 2 * np.log(lnlike)
     bic = (n_coeffs_total + n_parameters) * np.log(n_photometry_data) - 2 * np.log(lnlike)
     print(f'AIC: {round(aic, 3)} \nBIC: {round(bic, 3)}')
+
+    show_plots = config_dict['show_plots']  # TODO: catch case where output folder doesn't exist
+    if show_plots:
+        # Convergence of chains plot for params excluding distortion coefficients
+        convergence_plot(samples, parname, config_dict)
+
+        # Corner plot for all free parameters excluding distortion coefficients
+        fig = corner.corner(flat_samples, labels=parname)
+        fig.suptitle(f"Corner plot for {name} ({config_dict['run_id']}) \n"
+                     f"Model SED source: {config_dict['model_sed']}\n"
+                     f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
+        if config_dict['save_plots']:
+            f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}" \
+                     f"_{binning}A_bins_corner.png"
+            plt.savefig(f_name)
+        plt.show()
+
+        # Distortion plot with final SED for both stars  # TODO: fix this - hint below
+        # File "<ipython-input-8-52a4d834a98f>", line 49, in distortion_plot
+        #  redlaw, nc, config_dict, frp_coeffs, return_flux=True)
+        # ValueError: too many values to unpack (expected 5)
+        # distortion_plot(best_pars, f2m, flux_ratios, theta1_in, theta2_in, spec1, spec2, ebv_prior,
+        #                 redlaw, nc, frp_dictionary, config_dict, flat_samples)
 
     ############################################################
     # TODO catch case where output folder does not exist
