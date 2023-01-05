@@ -1,4 +1,5 @@
 from uncertainties import ufloat
+# noinspection PyUnresolvedReferences
 from uncertainties.umath import log10
 from scipy.interpolate import interp1d
 from scipy.integrate import simps
@@ -46,7 +47,6 @@ class Flux2mag:
                 * type: string
                     Type of color. Currently supported are:
                         * Stromgren: 'by', 'm1', 'c1'
-                        * Gaia: 'BPRP'
                 * color: `uncertainties.ufloat`
                     Observed color with standard error.
                 * zp: `uncertainties.ufloat`
@@ -114,7 +114,7 @@ class Flux2mag:
             R[b] = interp1d(t['w'], t['A'], bounds_error=False, fill_value=0)
             w_pivot[b] = wp(t['w'], t['A'])
 
-        # Gaia EDR3
+        # Gaia (E)DR3
         names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
         t = Table.read('Response/GaiaEDR3_passbands.dat',
                        format='ascii', names=names)
@@ -184,19 +184,6 @@ class Flux2mag:
                     x['resp'] = stromgren_r
                     x['vega_zp'] = stromgren_v
 
-                # Gaia colour TODO: implement correctly or remove the feature
-                elif x['type'] == 'BPRP':
-                    names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
-                    t = Table.read('Response/GaiaEDR3_passbands.dat', names=names, format='ascii')
-                    gaia_w, gaia_r, gaia_v = {}, {}, {}
-                    for m in ('BP', 'RP'):
-                        gaia_w[m] = t['wave']*10
-                        gaia_r[m] = t[m]
-                    x['wave'] = gaia_w
-                    x['resp'] = gaia_r
-                    x['zp'] = ufloat(0.0083, 0.0021)
-                    x['vega_zp'] = gaia_v  # "flux integrals for reference vega spectrum"
-
             self.colors_data = colors_data
 
         # -------------- RETRIEVE STANDARD PHOTOMETRY WITH VIZIER + SIMBAD QUERIES -------------- #
@@ -214,7 +201,7 @@ class Flux2mag:
             obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag'])
             obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag'])
         except KeyError:
-            raise AttributeError("Something went wrong reading Gaia EDR3 magnitudes. "
+            raise AttributeError("Something went wrong reading Gaia (E)DR3 magnitudes. "
                                  "Try checking star name is correct and resolved by SIMBAD")
         for b in ['W1', 'W2', 'W3', 'W4']:
             try:
@@ -354,18 +341,6 @@ class Flux2mag:
                         uv_c = mag['u'] - mag['v']
                         vb_c = mag['v'] - mag['b']
                         syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
-                elif b == 'BPRP':
-                    zp = {'BP': ufloat(25.3540, 0.0023),
-                          'RP': ufloat(24.7627, 0.0016)}
-
-                    # Calculates the Gaia synthetic colour
-                    r = {}
-                    for m in ['BP', 'RP']:  # TODO check this is correct - haven't used 'vega_zp'
-                        i = (x['resp'] < 99).nonzero()
-                        r[m] = interp1d(x['wave'][i], x['resp'][i], bounds_error=False, fill_value=0)
-                        photon_flux = p_a * simps(r[m](wave) * wave * f_lambda(wave) / 10000, wave) / hc9
-                        mag[m] = (-2.5 * np.log10(photon_flux) + zp[m]).n
-                    syn_col[b] = mag['BP'] - mag['RP']
 
             self.syn_col = syn_col
         else:
