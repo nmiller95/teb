@@ -21,6 +21,8 @@ response_files = dict(
     i_skymapper='Response/SkyMapper_SkyMapper.i.dat', z_skymapper='Response/SkyMapper_SkyMapper.z.dat',
     # TESS band
     TESS='Response/tess-response-function-v1.0.csv',
+    # Kepler band
+    Kepler='Response/Kepler_Kepler.K.dat',
     # Johnson/Cousins bands
     U='Response/Generic_Johnson.U.dat', B='Response/Generic_Johnson.B.dat', V='Response/Generic_Johnson.V.dat',
     R='Response/Generic_Johnson.R.dat', I='Response/Generic_Johnson.I.dat'
@@ -55,6 +57,8 @@ class FluxRatio:
                 * u_skymapper, v_skymapper g_skymapper r_skymapper i_skymapper z_skymapper
             * TESS:
                 * TESS
+            * Kepler:
+                * Kepler
             * Johnson/Cousins:
                 * U, B, V, R, I
         value: float
@@ -102,7 +106,7 @@ class FluxRatio:
         else:
             raise ValueError("Specified band not currently supported.")
 
-        if self.band == 'TESS':
+        if self.band == 'TESS' or self.band == 'Kepler':
             self.photon = True
         else:
             self.photon = False
