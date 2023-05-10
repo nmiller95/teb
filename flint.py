@@ -423,6 +423,8 @@ def interpolate_m_h(s, params, source, cache_path, reload, binning):
             m_h_params = (teff, logg, -0.5, 0.2)
         elif m_h_step == 0.0:
             m_h_params = (teff, logg, 0.0, 0.0)
+        elif m_h_step < -0.5:
+            m_h_params = (teff, logg, m_h_step, 0.4)
         else:
             m_h_params = (teff, logg, m_h_step, afe)
         m_h_model = load_spectrum_as_table(s, m_h_params, source)
