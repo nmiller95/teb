@@ -332,10 +332,14 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     Spectrum that has been linearly interpolated between two nearest temperatures
     """
     teff, logg, m_h, afe = params
-    if m_h == -0.5:  # TODO: fix this bodge - research boosting alpha fraction
+    # BT Settl models are limited in the metallicity-alpha fraction space.
+    # Must hard-code alpha fraction for successful model retrieval
+    if m_h == -0.5:
         afe = 0.2
     elif m_h == 0.0:
         afe = 0.0
+    elif m_h < -0.5:
+        afe = 0.4
     upper, lower = nearest_teff_models(s, params)
     spectra = []
     for t_step in (upper, lower):
