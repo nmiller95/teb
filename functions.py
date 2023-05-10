@@ -89,7 +89,8 @@ def angular_diameters(config_dict):
     Angular diameters for primary and secondary stars as `uncertainties.ufloat` objects
     """
     # Parallax load and apply zeropoint
-    gaia_zp = ufloat(-0.0055, 0.014)  # Gaia EDR3 custom ZP for CPD-54 810 from Lindegren+Flynn correction TODO automate
+    gaia_zp = ufloat(-0.0373, 0.013)  # Custom ZP for TYC 1243-402-1
+    # gaia_zp = ufloat(-0.0055, 0.014) Gaia EDR3 custom ZP for CPD-54 810 from Lindegren+Flynn correction TODO automate
     print(f'Applied Gaia parallax zero point correction {gaia_zp:0.3f}')
     plx = list_to_ufloat(config_dict['plx']) - gaia_zp
 
