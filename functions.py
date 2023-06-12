@@ -258,8 +258,16 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     distortion_type = config_dict['distortion']
 
     # Read parameters from input and check they're sensible
-    len_params = 7
-    teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l = params[0:len_params]
+    if not config_dict['apply_colors']:
+        len_params = 7
+        teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l = params[0:len_params]
+        sigma_col = None
+    else:
+        len_params = 8
+        teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l, sigma_col = params[0:len_params]
+        if sigma_col < 0:
+            return -np.inf
+
     if theta1 < 0:
         return -np.inf
     if theta2 < 0:
@@ -270,14 +278,6 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         return -np.inf
     if sigma_l < 0:
         return -np.inf
-
-    if config_dict['apply_colors']:
-        sigma_col = params[7]
-        len_params = 8
-        if sigma_col < 0:
-            return -np.inf
-    else:
-        sigma_col = None
 
     # Get wave and flux information from spec1 and spec2 objects
     wave = spec1.waveset
@@ -335,7 +335,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
 
     # Synthetic vs observed colours and magnitudes
     if config_dict['apply_colors']:
-        chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col)
+        chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col, apply_colors=True)
     else:
         chisq, lnlike_m = flux2mag(wave, flux, sigma_ext)
 
@@ -433,7 +433,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         f = "{:0.1f} {:0.1f} {:0.4f} {:0.4f} {:0.4f} {:0.1f} {:0.4f}"
         f += " {:0.1e}" * nc
         if distortion_type == 2:
-            nc2 = len(params) - 8 - nc
+            nc2 = len(params) - 8 - nc  # TODO: potential issue here, length of params hard coded
             f += " {:0.1e}" * nc2
             f += " {:0.2f}"
         print(f.format(*(tuple(params) + (lnlike,))))

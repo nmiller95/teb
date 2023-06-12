@@ -327,7 +327,7 @@ class Flux2mag:
                 f_interp = interp1d(wave, f_lambda)
 
                 # Calculates the Stromgren synthetic colours
-                if b in ['by', 'm1', 'c1']:
+                if x['type'] in ['by', 'm1', 'c1']:
                     for m in ('u', 'v', 'b', 'y'):
                         mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]),
                                                     x['wave'][m]) / x['vega_zp'][m])
