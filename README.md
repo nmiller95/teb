@@ -24,6 +24,8 @@ Developed in anaconda python 3.7.
 - [emcee](https://pypi.org/project/emcee/) 3.0.2 or later
 - [corner](https://pypi.org/project/corner/) 2.2.1 or later
 - [uncertainties](https://pypi.org/project/uncertainties/) 3.1.5 or later
+- [tqdm](https://pypi.org/project/tqdm/) 4.64.1 or later
+- [regions](https://pypi.org/project/regions/) 0.7 or later
 
 Plus standard libraries: matplotlib, scipy, numpy, yaml, cpickle, os, warnings
 
