@@ -200,20 +200,21 @@ class Flux2mag:
             obs_mag['G'] = ufloat(v[0][0]['Gmag'], v[0][0]['e_Gmag'])
             obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag'])
             obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag'])
-        except KeyError:
+        except IndexError:
             raise AttributeError("Something went wrong reading Gaia (E)DR3 magnitudes. "
                                  "Try checking star name is correct and resolved by SIMBAD")
+
         for b in ['W1', 'W2', 'W3', 'W4']:
             try:
                 if type(v[1][0][f'{b}mag']) == np.float32:
                     obs_mag[b] = ufloat(v[1][0][f'{b}mag'], v[1][0][f'e_{b}mag'])
-            except KeyError:
+            except IndexError:
                 print(f"Unable to find result for {b} band in WISE catalog (II/311/wise).")
         for b in ['FUV', 'NUV']:
             try:
                 if type(v[2][0][f'{b}mag']) == np.float64:
                     obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
-            except KeyError:
+            except IndexError:
                 print(f"Unable to find result for {b} band in GALEX catalog (II/335/galex_ais).")
 
         # Search SIMBAD for 2MASS J, H, Ks magnitudes.
@@ -227,7 +228,7 @@ class Flux2mag:
                 else:
                     obs_mag[b] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
             except KeyError:
-                print(f"Unable to find result for {b} band via SIMBAD search.")
+                print(f"Unable to find result for 2MASS {b} band via SIMBAD search.")
 
         # Add magnitudes from extra_data
         if extra_data:
