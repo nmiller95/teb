@@ -20,7 +20,7 @@ Developed in anaconda python 3.7.
 - [astropy](https://pypi.org/project/astropy/) 4.2.1 or later
 - [synphot](https://pypi.org/project/synphot/) 1.0.1 or later
 - [astroquery](https://pypi.org/project/astroquery/) 0.4.2 or later
-- [pyvo](https://pypi.org/project/pyvo/) 1.1 or later
+- [pyvo](https://pypi.org/project/pyvo/) 1.4 or later
 - [emcee](https://pypi.org/project/emcee/) 3.0.2 or later
 - [corner](https://pypi.org/project/corner/) 2.2.1 or later
 - [uncertainties](https://pypi.org/project/uncertainties/) 3.1.5 or later
