@@ -150,8 +150,14 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Invalid model SED library specified: {model_library}")
 
+    print("\n------------------------------------\n"
+          "Loading and interpolating model SEDs"
+          "\n------------------------------------")
+    print("\nPrimary component\n-----------------")
     spec1 = ModelSpectrum.from_parameters(teff1, logg1, m_h, aFe, binning=binning, reload=False, source=model_library)
+    print("\nSecondary component\n-------------------")
     spec2 = ModelSpectrum.from_parameters(teff2, logg2, m_h, aFe, binning=binning, reload=False, source=model_library)
+    print('\n')
 
     ############################################################
     # Synthetic optical flux ratios (don't use for real science)
