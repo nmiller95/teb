@@ -21,7 +21,7 @@ from flint import ModelSpectrum
 from flux2mag import Flux2mag
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
     run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, synthetic_optical_lratios, \
-    distortion_plot
+    distortion_plot, input_photometry_plot
 from make_config_files import make_config, make_photometry_data, make_flux_ratio_priors
 
 
@@ -112,6 +112,10 @@ if __name__ == "__main__":
         f2m = Flux2mag(name, extra_data, colors_data)
     except IndexError:
         raise SystemExit("Star name not resolved by SIMBAD")
+
+    if config_dict['show_plots']:
+        print('Generating plot of input photometry')
+        input_photometry_plot(config_dict, f2m)
 
     # Flux ratio prior calculation with methods from flux_ratio_priors.py
     if config_dict['apply_fratio_prior']:

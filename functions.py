@@ -667,3 +667,40 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
                  f"_{config_dict['binning']}A_bins_corner.png"
         plt.savefig(f_name)
     plt.show()
+
+
+def input_photometry_plot(config_dict, flux2mag):
+    """
+    Makes a simple plot of input observed magnitudes along with filter response functions
+    Parameters
+    ----------
+    config_dict: dict
+        Dictionary containing configuration parameters, from config.yaml file
+    flux2mag: `flux2mag.Flux2Mag`
+        Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
+
+    Returns
+    -------
+    Plot of magnitude and response against wavelength
+    """
+    fig, ax = plt.subplots(figsize=(8, 3))
+    fig.suptitle(f"Input photometry for {config_dict['name']} ({config_dict['run_id']})")
+    wave_plot_range = np.linspace(1000, 300000, 15000)
+    ax.semilogx(wave_plot_range, np.linspace(-1, -0.1, 15000))
+    ax2 = ax.twinx()
+
+    for key in flux2mag.obs_mag:
+        ax.errorbar(flux2mag.w_pivot[key], flux2mag.obs_mag[key].n, yerr=flux2mag.obs_mag[key].s,
+                    fmt='o', ms=4, c='#003f5c')
+        ax2.plot(wave_plot_range, flux2mag.R[key](wave_plot_range) / max(flux2mag.R[key](wave_plot_range)), c='#003f5c',
+                 alpha=0.2)
+
+    ax.set(xlim=(1000, 299998), ylim=(max(flux2mag.obs_mag.values()).n + 0.5, min(flux2mag.obs_mag.values()).n - 0.5),
+           xlabel=r'Wavelength [$\AA$]', ylabel='AB Magnitude')
+    ax2.set(ylim=(0, 1.1), ylabel='Normalised Response')
+
+    # Display plot and save plot to output directory
+    if config_dict['save_plots']:
+        f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_input_photometry.png"
+        plt.savefig(f_name)
+    plt.show()
