@@ -532,7 +532,7 @@ def convergence_plot(samples, parameter_names, config_dict):
     axes[-1].set(xlabel="Step number")
     fig.suptitle(f"Convergence plot for {name} ({run_id}) \n"
                  f"Model SED source: {model}\n"
-                 f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
+                 f"Teff1 = {teff1}, Teff2 = {teff2}, [M/H] = {m_h}, [a/Fe] = {aFe}", fontsize=14)
     fig.align_labels()
 
     # Save and display
@@ -568,7 +568,6 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
                     frp_coeffs, config_dict, flat_samples):
     """
     Generates plot showing final integrating functions and distortion for both stars
-    # TODO: fix me
     Parameters
     ----------
     best_pars: list
@@ -611,7 +610,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     elif config_dict['distortion'] == 1:
         n_panels = 2
         gridspec = {'height_ratios': [4, 2]}
-        wave, flux, f1, f2, d1 = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
+        wave, flux, f1, f2, d1, _ = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
                                         redlaw, nc, config_dict, frp_coeffs, return_flux=True)
     else:
         return None
@@ -621,7 +620,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     fig.suptitle(f"Convergence plot for {config_dict['name']} ({config_dict['run_id']}) \n"
                  f"Model SED source: {config_dict['model_sed']}\n"
                  f"Teff1 = {config_dict['teff1']}, Teff2 = {config_dict['teff2']}, "
-                 f"M/H = {config_dict['m_h']}, a/Fe = {config_dict['aFe']}", fontsize=14)
+                 f"[M/H] = {config_dict['m_h']}, [a/Fe] = {config_dict['aFe']}", fontsize=14)
 
     # Integrating functions panel
     ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C'
@@ -653,7 +652,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     elif config_dict['distortion'] == 1:
         # Plot a subset of distortion polynomials in only one panel
         for i in range(0, len(flat_samples), len(flat_samples) // 64):
-            _, _, _, _, _d1 = lnprob(
+            _, _, _, _, _d1, _ = lnprob(
                 flat_samples[i, :], flux2mag, lratios,
                 theta1, theta2, spec1, spec2,
                 ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)
