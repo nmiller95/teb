@@ -7,28 +7,17 @@ teb is a Python package that calculates fundamental effective temperatures for s
 
 ## Installation
 
-Clone the repository .
+Clone the repository:
 
 ```bash
 $ git clone https://github.com/nmiller95/teb.git
 ```
+Then use pip to install the requirements.txt file
+```bash
+$ python3 -m pip install -r requirements.txt
+```
 
-## Requirements
-
-Developed in anaconda python 3.7.
-
-- [astropy](https://pypi.org/project/astropy/) 4.2.1 or later
-- [synphot](https://pypi.org/project/synphot/) 1.0.1 or later
-- [astroquery](https://pypi.org/project/astroquery/) 0.4.2 or later
-- [pyvo](https://pypi.org/project/pyvo/) 1.4 or later
-- [emcee](https://pypi.org/project/emcee/) 3.0.2 or later
-- [corner](https://pypi.org/project/corner/) 2.2.1 or later
-- [uncertainties](https://pypi.org/project/uncertainties/) 3.1.5 or later
-- [tqdm](https://pypi.org/project/tqdm/) 4.64.1 or later
-- [regions](https://pypi.org/project/regions/) 0.7 or later
-
-Plus standard libraries: matplotlib, scipy, numpy, yaml, cpickle, os, warnings
-
+teb was developed in Python 3.7. 
 
 ## Usage
 
