@@ -1,0 +1,14 @@
+astropy==4.2.1
+synphot==1.0.1
+astroquery==0.4.2
+pyvo==1.4
+emcee==3.0.2
+corner==2.2.1
+uncertainties==3.1.5
+tqdm==4.61.1
+regions==0.7
+matplotlib==3.4.2
+numpy==1.22.3
+scipy==1.10.1
+yaml==4.5.1
+gaiadr3-zeropoint==0.0.4
