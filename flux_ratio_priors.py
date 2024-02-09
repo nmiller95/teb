@@ -87,6 +87,14 @@ def fitcol(band, table, tref=5777, method='quad'):
     V0 = table['Vmag1'] - 3.1 * table['E(B-V)']
     m0 = table[band] - R[band] * table['E(B-V)']
     y = V0 - m0
+    try:
+        x = x.filled(np.nan)
+    except:
+        pass
+    try:
+        y = y.filled(np.nan)
+    except:
+        pass
     i = np.isfinite(x) & np.isfinite(y)
     x = x[i]
     y = y[i]
