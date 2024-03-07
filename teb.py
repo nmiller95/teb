@@ -26,14 +26,15 @@ from make_config_files import make_config, make_photometry_data, make_flux_ratio
 
 def inputs(argv):
     def usage():
-        print('\nCorrect usage:')
-        print('teb.py -c <configfile> -p <photometryfile> -f <frpfile>')
-        print('\nAssumes input files are in directory config/')
-        print('If no files are specified, the defaults are: \n--config = \"config.yaml\"'
-              '\n--photometry = \"photometry_data.yaml\" \n--frp = \"flux_ratio_priors.yaml\"')
-        print('In the case you want to try a fit with synthetic UVBRI flux ratios, add \"--synth\"')
+        print('\nCorrect usage:\n--------------')
+        print('    teb.py -c <configfile> -p <photometryfile> -f <frpfile>')
+        print('\nteb assumes input files are in subdirectory config/')
+        print('\nIf no input file names are specified, the defaults are: \n    --config = \"config.yaml\"'
+              '\n    --photometry = \"photometry_data.yaml\" \n    --frp = \"flux_ratio_priors.yaml\"')
+        print('To try a fit with synthetic UVBRI flux ratios (not recommended for science), '
+              '\nadd the argument \"--synth\"')
         print('\nYou can create empty configuration files using')
-        print('teb.py -m <filename> or teb.py --makefile <filename>')
+        print('    teb.py -m <filename> or teb.py --makefile <filename>')
         print('Filename extension does not need to be specified.\n')
 
     c_file, p_file, f_file = None, None, None
@@ -46,7 +47,7 @@ def inputs(argv):
         usage()
         sys.exit(2)
     for opt, arg in opts:
-        if opt == '-h':
+        if opt in ("-h", "--help"):
             usage()
             sys.exit()
         elif opt in ("-c", "--config"):
