@@ -14,6 +14,8 @@ import flux_ratio_priors as frp
 from flux_ratios import FluxRatio
 import sys
 from scipy.interpolate import interp1d
+from astroquery.vizier import Vizier
+from zero_point import zpt
 
 
 def list_to_ufloat(two_item_list):
@@ -75,6 +77,93 @@ def load_photometry(photometry_file):
     return flux_ratios, extra_data, colors_data
 
 
+def parallax_zeropoint(config_dict):
+    """
+    Finds zeropoint and correction for Gaia parallax
+
+    Parameters
+    ----------
+    config_dict: dict
+        Dictionary containing parameters, loaded from config.yaml
+
+    Returns
+    -------
+    Parallax + error, zeropoint + error in two ufloat objects
+    """
+    # Read data from Gaia EDR3
+    name = config_dict['name']
+    vizier_r = Vizier(columns=["**", "+_r"])
+    v = vizier_r.query_object(name, catalog='I/350/gaiaedr3')
+
+    # Grab parallax
+    plx = ufloat(v[0][0]['Plx'], v[0][0]['e_Plx'])
+
+    # Retrieve relevant information from EDR3 for the target
+    phot_g_mean_mag = v[0][0]['Gmag']
+    ecl_lat = v[0][0]['ELAT']
+    nu_eff_used_in_astrometry = v[0][0]['nueff']
+    astrometric_params_solved = v[0][0]['Solved']
+    # for 5-parameter solutions, pseudocolour is arbitrary.
+    if astrometric_params_solved == 31:
+        pseudocolour = 0
+    else:
+        pseudocolour = v[0][0]['pscol']
+
+    # Check whether target meets validity range described in docstring
+    if phot_g_mean_mag < 6 or phot_g_mean_mag > 21:
+        print(f"G magnitude ({phot_g_mean_mag}) outside of supported range (6-21).")
+        print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
+        return plx, ufloat(-0.021, 0.013)
+    elif nu_eff_used_in_astrometry < 1.1 or nu_eff_used_in_astrometry > 1.9:
+        print(f"nu_eff_used_in_astronometry of {nu_eff_used_in_astrometry} outside of supported range (1.1-1.9).")
+        print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
+        return plx, ufloat(-0.021, 0.013)
+
+    try:
+        # Calculate zeropoint for target
+        zpt.load_tables()
+        zp = zpt.get_zpt(
+            phot_g_mean_mag,
+            nu_eff_used_in_astrometry,
+            pseudocolour,
+            ecl_lat,
+            astrometric_params_solved
+        )
+
+        if phot_g_mean_mag <= 11:
+            # Flynn+2022 correction based on open and globular clusters
+            # Data from Table 1
+            bprp_arr = np.array([0.02, 0.19, 0.40, 0.65, 1.56, 2.72])
+            offset = np.array([-10.8, -8.9, -4.4, 2.7, 9.8, 7.3])
+            offset_err = np.array([3.3, 2.7, 2.7, 5.2, 1.9, 8.4])
+
+            # Linear interpolation
+            f = interp1d(bprp_arr, offset)
+            f_err = interp1d(bprp_arr, offset_err)
+            x = np.linspace(min(bprp_arr), max(bprp_arr), num=100, endpoint=True)
+
+            # Apply color-based correction - a bit hacky
+            bprp_target = v[0][0]['BP-RP']
+            correction = float(f(bprp_target))  # in uas
+            corr_err = float(f_err(bprp_target))  # error interpolated
+
+            combined_zp = zp + correction / 1000
+            combined_err = np.sqrt(0.013 ** 2 + (corr_err / 1000) ** 2)
+            # Return value of Lindegren et al 2021 adjusted by Flynn et al 2022
+            print(f"Correction to Gaia parallax from Flynn+2022 applied {combined_zp:0.3f}")
+            return plx, ufloat(combined_zp, combined_err)
+
+        else:
+            # Return value of Lindegren et al 2021
+            print(f"Correction to Gaia parallax from Lindegren+2021 applied {zp:0.3f}")
+            return plx, ufloat(zp, 0.013)
+
+    except ValueError:
+        print("Problem with zero-point offset calculation: check value of astrometric_params_solved")
+        print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
+        return plx, ufloat(-0.021, 0.013)
+
+
 def angular_diameters(config_dict):
     """
     Converts input radii and Gaia parallax to angular diameters in mas
@@ -88,11 +177,9 @@ def angular_diameters(config_dict):
     -------
     Angular diameters for primary and secondary stars as `uncertainties.ufloat` objects
     """
-    # Parallax load and apply zeropoint
-    gaia_zp = ufloat(-0.0373, 0.013)  # Custom ZP for TYC 1243-402-1
-    # gaia_zp = ufloat(-0.0055, 0.014) Gaia EDR3 custom ZP for CPD-54 810 from Lindegren+Flynn correction TODO automate
-    print(f'Applied Gaia parallax zero point correction {gaia_zp:0.3f}')
-    plx = list_to_ufloat(config_dict['plx']) - gaia_zp
+    # Parallax load and apply zero-point
+    plx_raw, gaia_zp = parallax_zeropoint(config_dict)
+    plx = plx_raw - gaia_zp
 
     # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
     # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
@@ -532,7 +619,7 @@ def convergence_plot(samples, parameter_names, config_dict):
     axes[-1].set(xlabel="Step number")
     fig.suptitle(f"Convergence plot for {name} ({run_id}) \n"
                  f"Model SED source: {model}\n"
-                 f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
+                 f"Teff1 = {teff1}, Teff2 = {teff2}, [M/H] = {m_h}, [a/Fe] = {aFe}", fontsize=14)
     fig.align_labels()
 
     # Save and display
@@ -568,7 +655,6 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
                     frp_coeffs, config_dict, flat_samples):
     """
     Generates plot showing final integrating functions and distortion for both stars
-    # TODO: fix me
     Parameters
     ----------
     best_pars: list
@@ -611,7 +697,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     elif config_dict['distortion'] == 1:
         n_panels = 2
         gridspec = {'height_ratios': [4, 2]}
-        wave, flux, f1, f2, d1 = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
+        wave, flux, f1, f2, d1, _ = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
                                         redlaw, nc, config_dict, frp_coeffs, return_flux=True)
     else:
         return None
@@ -621,7 +707,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     fig.suptitle(f"Convergence plot for {config_dict['name']} ({config_dict['run_id']}) \n"
                  f"Model SED source: {config_dict['model_sed']}\n"
                  f"Teff1 = {config_dict['teff1']}, Teff2 = {config_dict['teff2']}, "
-                 f"M/H = {config_dict['m_h']}, a/Fe = {config_dict['aFe']}", fontsize=14)
+                 f"[M/H] = {config_dict['m_h']}, [a/Fe] = {config_dict['aFe']}", fontsize=14)
 
     # Integrating functions panel
     ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C'
@@ -653,7 +739,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     elif config_dict['distortion'] == 1:
         # Plot a subset of distortion polynomials in only one panel
         for i in range(0, len(flat_samples), len(flat_samples) // 64):
-            _, _, _, _, _d1 = lnprob(
+            _, _, _, _, _d1, _ = lnprob(
                 flat_samples[i, :], flux2mag, lratios,
                 theta1, theta2, spec1, spec2,
                 ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)

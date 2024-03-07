@@ -20,7 +20,8 @@ import flux_ratio_priors as frp
 from flint import ModelSpectrum
 from flux2mag import Flux2mag
 from functions import lnprob, list_to_ufloat, angular_diameters, initial_parameters, \
-    run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, synthetic_optical_lratios
+    run_mcmc_simulations, load_photometry, convergence_plot, print_mcmc_solution, synthetic_optical_lratios, \
+    distortion_plot
 from make_config_files import make_config, make_photometry_data, make_flux_ratio_priors
 
 
@@ -264,19 +265,16 @@ if __name__ == "__main__":
         fig = corner.corner(flat_samples, labels=parname)
         fig.suptitle(f"Corner plot for {name} ({config_dict['run_id']}) \n"
                      f"Model SED source: {config_dict['model_sed']}\n"
-                     f"Teff1 = {teff1}, Teff2 = {teff2}, M/H = {m_h}, a/Fe = {aFe}", fontsize=14)
+                     f"Teff1 = {teff1}, Teff2 = {teff2}, [M/H] = {m_h}, [a/Fe] = {aFe}", fontsize=14)
         if config_dict['save_plots']:
             f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}" \
                      f"_{binning}A_bins_corner.png"
             plt.savefig(f_name)
         plt.show()
 
-        # Distortion plot with final SED for both stars  # TODO: fix this - hint below
-        # File "<ipython-input-8-52a4d834a98f>", line 49, in distortion_plot
-        #  redlaw, nc, config_dict, frp_coeffs, return_flux=True)
-        # ValueError: too many values to unpack (expected 5)
-        # distortion_plot(best_pars, f2m, flux_ratios, theta1_in, theta2_in, spec1, spec2, ebv_prior,
-        #                 redlaw, nc, frp_dictionary, config_dict, flat_samples)
+        # Distortion plot with final SED for both stars
+        distortion_plot(best_pars, f2m, flux_ratios, theta1_in, theta2_in, spec1, spec2, ebv_prior,
+                        redlaw, nc, frp_dictionary, config_dict, flat_samples)
 
     ############################################################
     f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{teff1}_{teff2}_{m_h}_{aFe}_{binning}A_bins.pkl"

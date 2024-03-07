@@ -20,7 +20,7 @@ response_files = dict(
     g_skymapper='Response/SkyMapper_SkyMapper.g.dat', r_skymapper='Response/SkyMapper_SkyMapper.r.dat',
     i_skymapper='Response/SkyMapper_SkyMapper.i.dat', z_skymapper='Response/SkyMapper_SkyMapper.z.dat',
     # TESS band
-    TESS='Response/tess-response-function-v1.0.csv',
+    TESS='Response/tess-response-function-v2.0.csv',
     # Kepler band
     Kepler='Response/Kepler_Kepler.K.dat',
     # Johnson/Cousins bands
