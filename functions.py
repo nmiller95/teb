@@ -704,7 +704,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
 
     fig, ax = plt.subplots(n_panels, figsize=(8, 3*n_panels), sharex='col', gridspec_kw=gridspec)
     fig.subplots_adjust(hspace=0.05)
-    fig.suptitle(f"Convergence plot for {config_dict['name']} ({config_dict['run_id']}) \n"
+    fig.suptitle(f"Distortion plot for {config_dict['name']} ({config_dict['run_id']}) \n"
                  f"Model SED source: {config_dict['model_sed']}\n"
                  f"Teff1 = {config_dict['teff1']}, Teff2 = {config_dict['teff2']}, "
                  f"[M/H] = {config_dict['m_h']}, [a/Fe] = {config_dict['aFe']}", fontsize=14)
