@@ -712,7 +712,7 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     # Integrating functions panel
     ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C'
     ax[0].semilogx(wave, 1e12 * f2, c='#ffa600', label='Secondary')  # c='#CEC814'
-    ax[0].set(xlim=(1002, 299998), ylim=(-0.0, 0.25), yticks=(np.arange(0, 0.25, 0.05)),
+    ax[0].set(xlim=(1002, 299998), ylim=(-0.0, max(f1)*1e12*1.05), # yticks=(np.arange(0, 0.25, 0.05)),
               ylabel=r'$f_{\lambda}$  [10$^{-12}$ erg cm$^{-2}$ s$^{-1}$]')
     ax[0].yaxis.set_minor_locator(MultipleLocator(0.05))
     ax[0].legend()
@@ -751,6 +751,6 @@ def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, 
     if config_dict['save_plots']:
         f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{config_dict['teff1']}_" \
                  f"{config_dict['teff2']}_{config_dict['m_h']}_{config_dict['aFe']}" \
-                 f"_{config_dict['binning']}A_bins_corner.png"
+                 f"_{config_dict['binning']}A_bins_distortion.png"
         plt.savefig(f_name)
     plt.show()
