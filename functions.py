@@ -184,7 +184,11 @@ def angular_diameters(config_dict):
     # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
     # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
     r1 = list_to_ufloat(config_dict['r1'])
-    r2 = list_to_ufloat(config_dict['r2'])
+    if config_dict['apply_k_prior']:
+        print('Using k instead of r_2')
+        r2 = list_to_ufloat(config_dict['k']) * r1
+    else:
+        r2 = list_to_ufloat(config_dict['r2'])
     theta1 = 2 * plx * r1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
     theta2 = 2 * plx * r2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
     return theta1, theta2
@@ -482,10 +486,10 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     if config_dict['apply_ebv_prior']:
         lnprior += -0.5 * (ebv - ebv_prior.n) ** 2 / ebv_prior.s ** 2
 
-    # Applying prior on radius ratio (if needed)
-    if config_dict['apply_k_prior']:
-        k_prior = list_to_ufloat(config_dict['k'])
-        lnprior += -0.5*((theta2/theta1 - k_prior.n)/k_prior.s) ** 2
+    # Applying prior on radius ratio (if needed) - now handled in angular_diameters
+    # if config_dict['apply_k_prior']:
+    #     k_prior = list_to_ufloat(config_dict['k'])
+    #     lnprior += -0.5*((theta2/theta1 - k_prior.n)/k_prior.s) ** 2
 
     # Applying priors on NIR flux ratios (if relevant)
     if config_dict['apply_fratio_prior']:
@@ -526,7 +530,7 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
         print(f.format(*(tuple(params) + (lnlike,))))
     if np.isfinite(lnlike):
         if blobs:
-            return (lnlike + lnprior, *blob_data)
+            return lnlike + lnprior, *blob_data
         else:
             return lnlike + lnprior
     else:
