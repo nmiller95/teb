@@ -206,16 +206,18 @@ class Flux2mag:
 
         for b in ['W1', 'W2', 'W3', 'W4']:
             try:
-                if type(v[1][0][f'{b}mag']) == np.float32:
+                if type(v[1][0][f'{b}mag']) == np.float32 and type(v[1][0][f'e_{b}mag']) == np.float32:
                     obs_mag[b] = ufloat(v[1][0][f'{b}mag'], v[1][0][f'e_{b}mag'])
+                else:
+                    print(f"Unable to find magnitude for {b} band in WISE catalog (II/311/wise).")
             except IndexError:
-                print(f"Unable to find result for {b} band in WISE catalog (II/311/wise).")
+                print(f"Unable to find magnitude for {b} band in WISE catalog (II/311/wise).")
         for b in ['FUV', 'NUV']:
             try:
                 if type(v[2][0][f'{b}mag']) == np.float64:
                     obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
             except IndexError:
-                print(f"Unable to find result for {b} band in GALEX catalog (II/335/galex_ais).")
+                print(f"Unable to find magnitude for {b} band in GALEX catalog (II/335/galex_ais).")
 
         # Search SIMBAD for 2MASS J, H, Ks magnitudes.
         sb = Simbad()
@@ -228,7 +230,7 @@ class Flux2mag:
                 else:
                     obs_mag[b] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
             except KeyError:
-                print(f"Unable to find result for 2MASS {b} band via SIMBAD search.")
+                print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
 
         # Add magnitudes from extra_data
         if extra_data:
@@ -292,23 +294,29 @@ class Flux2mag:
         # Calculate synthetic magnitude for 2MASS bands
         # "+20" to account for wave in A not um
         for b in ['J', 'H', 'Ks']:
-            if self.R[b]:
-                v = self.f_vega[b]
-                zp = self.zp[b]
-                R = self.R[b]
-                syn_mag[b] = -2.5 * np.log10(simps(R(wave) * f_lambda * wave, wave) / v) + 20 + zp
+            try:
+                if self.obs_mag[b]:
+                    v = self.f_vega[b]
+                    zp = self.zp[b]
+                    R = self.R[b]
+                    syn_mag[b] = -2.5 * np.log10(simps(R(wave) * f_lambda * wave, wave) / v) + 20 + zp
+            except KeyError:
+                pass
 
         # Calculate synthetic magnitude for WISE bands
         # For ALLWISE, calculate AB magnitudes and then convert Vega magnitudes using corrections from
         # Jarrett_2011_ApJ_735_112: "Conversion to the monochromatic AB system entails an additional 2.699, 3.339,
         # 5.174, and 6.620 added to the Vega magnitudes for W1, W2, W3, and W4, respectively"
         for b in ('W1', 'W2', 'W3', 'W4'):
-            if self.R[b]:
-                R = self.R[b]
-                f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                        simps(R(wave) * 2.998e10 / wave, wave))
-                syn_mag[b] = -2.5 * np.log10(f_nu) + 20 - 48.60 - self.zp[b]  # "+20" to account for wave in A not um
-            self.syn_mag = syn_mag
+            try:
+                if self.obs_mag[b]:
+                    R = self.R[b]
+                    f_nu = (simps(f_lambda * R(wave) * wave, wave) /
+                            simps(R(wave) * 2.998e10 / wave, wave))
+                    syn_mag[b] = -2.5 * np.log10(f_nu) + 20 - 48.60 - self.zp[b]  # +20 to account for wave in A not um
+                self.syn_mag = syn_mag
+            except KeyError:
+                pass
 
         # Process extra_data
         if self.extra_data:
