@@ -9,6 +9,63 @@ from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 
 
+def galex_zp_correction(band, mag):
+    """
+    Corrects zero-point for GALEX bands using data from Table 4 of Camarota & Holberg (2014), using the distribution of
+    points about the observed magnitude of the binary.
+
+    Parameters
+    ----------
+    band: string
+        Photometric band of observation: NUV, FUV
+    mag: uncertainties.ufloat
+        Observed magnitude and error in band
+
+    Returns
+    -------
+    ufloat containing correction and error to be applied to the default zeropoint for the specified band
+    """
+    # Read data from Table 4 of Camarota & Holmberg (2014)
+    t = Table.read('Table4complete.txt', format='ascii', data_start=1)
+    if band == 'NUV':
+        galex_mag, galex_mag_err, synth_mag = t['col7'], t['col8'], t['col10']
+        # Check magnitude is within reasonable range for this correction
+        if 12.5 <= mag.n <= 15.5:
+            sample_width = 0.5
+        elif 11.5 <= mag.n < 12.5 or 15.5 < mag.n <= 17:
+            sample_width = 1.0
+        else:
+            return ufloat(0, 0)
+    elif band == 'FUV':
+        galex_mag, galex_mag_err, synth_mag = t['col5'], t['col6'], t['col9']
+        # Check magnitude is within reasonable range for this correction
+        if 12 <= mag.n <= 17:
+            sample_width = 0.5
+        elif 11 <= mag.n < 12 or 17 < mag.n <= 20:
+            sample_width = 1.0
+        else:
+            return ufloat(0, 0)
+    else:
+        print('Tried to make correction to GALEX magnitude zeropoint but band not read correctly.')
+        return ufloat(0, 0)
+
+    # Select sample of stars and find mean value + standard deviation of sample
+    sample_filter = []
+    for i, _ in enumerate(galex_mag):
+        if abs(mag.n - galex_mag[i]) < sample_width:
+            if synth_mag[i] > 0.0:
+                sample_filter.append(True)
+            else:
+                sample_filter.append(False)
+        else:
+            sample_filter.append(False)
+    zp_offset = np.mean((galex_mag - synth_mag)[sample_filter])
+    # zp_mad = mad((galex_mag-synth_mag)[sample_filter])
+    zp_stdev = np.std((galex_mag - synth_mag)[sample_filter])
+
+    return ufloat(zp_offset, zp_stdev)
+
+
 class Flux2mag:
     """
     Stores observed magnitudes and colours and calculates synthetic magnitudes and colours
@@ -204,6 +261,7 @@ class Flux2mag:
             raise AttributeError("Something went wrong reading Gaia (E)DR3 magnitudes. "
                                  "Try checking star name is correct and resolved by SIMBAD")
 
+        # Retrieve WISE photometry direct from catalogue
         for b in ['W1', 'W2', 'W3', 'W4']:
             try:
                 if type(v[1][0][f'{b}mag']) == np.float32 and type(v[1][0][f'e_{b}mag']) == np.float32:
@@ -212,10 +270,13 @@ class Flux2mag:
                     print(f"Unable to find magnitude for {b} band in WISE catalog (II/311/wise).")
             except IndexError:
                 print(f"Unable to find magnitude for {b} band in WISE catalog (II/311/wise).")
+
+        # Retrieve GALEX photometry direct from catalogue
         for b in ['FUV', 'NUV']:
             try:
                 if type(v[2][0][f'{b}mag']) == np.float64:
                     obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
+                    # self.zp[b] -= galex_zp_correction(b, obs_mag)  # TODO testing
             except IndexError:
                 print(f"Unable to find magnitude for {b} band in GALEX catalog (II/335/galex_ais).")
 
