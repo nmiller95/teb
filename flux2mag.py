@@ -35,7 +35,7 @@ def galex_zp_correction(band, mag):
         elif 11.5 <= mag.n < 12.5 or 15.5 < mag.n <= 17:
             sample_width = 1.0
         else:
-            return ufloat(0, 0)
+            return ufloat(0, 0.5)  # TODO: Replace with average scatter of graph and/or alternative method
     elif band == 'FUV':
         galex_mag, galex_mag_err, synth_mag = t['col5'], t['col6'], t['col9']
         # Check magnitude is within reasonable range for this correction
@@ -44,7 +44,7 @@ def galex_zp_correction(band, mag):
         elif 11 <= mag.n < 12 or 17 < mag.n <= 20:
             sample_width = 1.0
         else:
-            return ufloat(0, 0)
+            return ufloat(0, 0.5)
     else:
         print('Tried to make correction to GALEX magnitude zeropoint but band not read correctly.')
         return ufloat(0, 0)
@@ -120,12 +120,12 @@ class Flux2mag:
 
         # Zero-point (Vega magnitude system) information as a dictionary
         # Zero-point for GALEX bands is from Camarota & Holberg with correction made using the scatter of points
-        # in Figure 4 about the observed magnitude of the binary TODO: make functions to generalise this
+        # in Figure 4 about the observed magnitude of the binary
         # N.B. For WISE, these are offsets from Vega to AB magnitudes from Jarret et al.
         #   "This Vega basis has an overall systematic uncertainty of ∼1.45%." (0.016 mag)
         self.zp = {
-            'FUV': ufloat(-49.43, 0.374),  # ufloat(-48.60, 0.134),
-            'NUV': ufloat(-49.04, 0.883),  # ufloat(-48.60, 0.154),
+            'FUV': ufloat(-48.60, 0.134),  # ufloat(-48.43, 0.374),
+            'NUV': ufloat(-48.60, 0.154),  # ufloat(-49.04, 0.883),
             'G': ufloat(25.6874, 0.0028),
             'BP': ufloat(25.3385, 0.0028),
             'RP': ufloat(24.7479, 0.0038),
@@ -276,7 +276,8 @@ class Flux2mag:
             try:
                 if type(v[2][0][f'{b}mag']) == np.float64:
                     obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
-                    # self.zp[b] -= galex_zp_correction(b, obs_mag)  # TODO testing
+                    self.zp[b] -= galex_zp_correction(b, obs_mag[b])  # TODO testing
+                    print(f"Correcting GALEX photometric ZP: Observed {b} mag: {obs_mag[b]}, New ZP: {self.zp[b]}")
             except IndexError:
                 print(f"Unable to find magnitude for {b} band in GALEX catalog (II/335/galex_ais).")
 
