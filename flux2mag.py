@@ -25,18 +25,30 @@ def galex_zp_correction(band, mag):
     -------
     ufloat containing correction and error to be applied to the default zeropoint for the specified band
     """
-    # Read data from Table 4 of Camarota & Holmberg (2014)
+    # Read data from Table 4 of Camarota & Holberg (2014)
     t = Table.read('Table4complete.txt', format='ascii', data_start=1)
     if band == 'NUV':
+        # If bright, can apply correction from Wall et al (2019) instead
+        if 10.0 <= mag.n <= 16.95:
+            c0, c1, c2 = 3.778, 24.337, -241.018
+            corr_mag = c0 + (c1*mag + c2)**0.5  # N.B. Propagates formal error from observation only
+            return mag-corr_mag
+        # Otherwise, calculate correction from Camarota & Holberg
         galex_mag, galex_mag_err, synth_mag = t['col7'], t['col8'], t['col10']
         # Check magnitude is within reasonable range for this correction
+        # Leaving this here for future option to manually choose one correction over another
         if 12.5 <= mag.n <= 15.5:
             sample_width = 0.5
         elif 11.5 <= mag.n < 12.5 or 15.5 < mag.n <= 17:
             sample_width = 1.0
         else:
-            return ufloat(0, 0.5)  # TODO: Replace with average scatter of graph and/or alternative method
+            return ufloat(0, 0.8)  # Arbitrary scatter from visual inspection
     elif band == 'FUV':
+        # If bright, can apply correction from Wall et al (2019) instead
+        if 10.0 <= mag.n <= 15.95:
+            c0, c1, c2 = 6.412, 17.63, -192.135
+            corr_mag = c0 + (c1 * mag + c2) ** 0.5  # N.B. Propagates formal error from observation only
+            return mag-corr_mag
         galex_mag, galex_mag_err, synth_mag = t['col5'], t['col6'], t['col9']
         # Check magnitude is within reasonable range for this correction
         if 12 <= mag.n <= 17:
@@ -44,7 +56,7 @@ def galex_zp_correction(band, mag):
         elif 11 <= mag.n < 12 or 17 < mag.n <= 20:
             sample_width = 1.0
         else:
-            return ufloat(0, 0.5)
+            return ufloat(0, 1.0)  # Arbitrary scatter from visual inspection
     else:
         print('Tried to make correction to GALEX magnitude zeropoint but band not read correctly.')
         return ufloat(0, 0)
@@ -277,6 +289,9 @@ class Flux2mag:
                 if type(v[2][0][f'{b}mag']) == np.float64:
                     obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
                     self.zp[b] -= galex_zp_correction(b, obs_mag[b])  # TODO testing
+                    print("WARNING: Nikki tried to generalise the GALEX ZP corrections and now results are worse.")
+                    print("         Sorry for breaking the main version. Anticipated fix: week starting 08 April 2024.")
+                    print("         Problem comes from unjustifiably large error in ZP for stars with faint UV mag.")
                     print(f"Correcting GALEX photometric ZP: Observed {b} mag: {obs_mag[b]}, New ZP: {self.zp[b]}")
             except IndexError:
                 print(f"Unable to find magnitude for {b} band in GALEX catalog (II/335/galex_ais).")
