@@ -52,12 +52,12 @@ extra_data:
     file: Response/SkyMapper_SkyMapper.v.dat
 
 # Photometric colors
-# colors_data:
-#   - tag: b-y
-#     type: by
-#     color:
-#       - 
-#       - 
+colors_data:
+  - tag: b-y
+    type: by
+    color:
+      - 0.1
+      - 0.2
 
 
 ### HOW TO USE THIS CONFIGURATION FILE
