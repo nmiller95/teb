@@ -304,14 +304,17 @@ class Flux2mag:
         sb = Simbad()
         sb.add_votable_fields('flux(J)', 'flux_error(J)', 'flux(H)', 'flux_error(H)', 'flux(K)', 'flux_error(K)')
         sb_tab = sb.query_object(name)
-        for b in ['J', 'H', 'K']:
-            try:
-                if b == 'K':
-                    obs_mag['Ks'] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
-                else:
-                    obs_mag[b] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
-            except KeyError:
-                print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
+        if not sb_tab:
+            print("Unable to find any 2MASS magnitudes for target via SIMBAD search.")
+        else:
+            for b in ['J', 'H', 'K']:
+                try:
+                    if b == 'K':
+                        obs_mag['Ks'] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
+                    else:
+                        obs_mag[b] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
+                except KeyError:
+                    print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
 
         # Add magnitudes from extra_data
         if extra_data:
