@@ -166,8 +166,17 @@ def valid_teff(params, source):
     if source == 'bt-settl':
         if teff < 400 or teff > 70000:
             raise ValueError("Temperature outside range supported by BT-Settl models. Must be 400K <= Teff <= 70000K")
+
         elif teff % 100:
             return False
+        elif 7000 <= teff < 12000:  # Grid density changes to 200K steps above 7000K
+            if teff % 200:
+                return False
+            else:
+                return True
+        elif teff <= 12000:
+            raise ValueError("teb is not currently designed to handle such high Teff. \n"
+                             "Open an issue on GitHub if you really want to go this hot...")
         else:
             return True
     elif source == 'bt-settl-cifist':
