@@ -325,10 +325,21 @@ class Flux2mag:
                 try:
                     if b == 'K':
                         obs_mag['Ks'] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
+                        try:
+                            assert type(sb_tab['FLUX_{}'.format(b)][0]) is np.float32
+                        except AssertionError:
+                            print(f"Unable to find magnitude for 2MASS Ks band via SIMBAD search.")
+                            obs_mag.pop('Ks')
                     else:
                         obs_mag[b] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
+                        try:
+                            assert type(sb_tab['FLUX_{}'.format(b)][0]) is np.float32
+                        except AssertionError:
+                            print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
+                            obs_mag.pop(b)
                 except KeyError:
-                    print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
+                    pass
+                    # print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
 
         # Add magnitudes from extra_data
         if extra_data:
