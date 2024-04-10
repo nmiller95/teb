@@ -90,10 +90,23 @@ def parallax_zeropoint(config_dict):
     -------
     Parallax + error, zeropoint + error in two ufloat objects
     """
-    # Read data from Gaia EDR3
+    # Read data from Gaia DR3
     name = config_dict['name']
     vizier_r = Vizier(columns=["**", "+_r"])
-    v = vizier_r.query_object(name, catalog='I/350/gaiaedr3')
+    v = vizier_r.query_object(name, catalog='I/355/gaiadr3')
+    if len(v) == 0:
+        if len(name) == 5:  # Fix whitespace issue in search (e.g. AIPhe -> AI Phe)
+            name_v = name[0:2] + ' ' + name[2:5]
+            v = vizier_r.query_object(name_v, catalog='I/355/gaiadr3')
+        else:
+            try:
+                Vizier.clear_cache()
+                v = vizier_r.query_object(name, catalog='I/355/gaiadr3')
+                assert len(v) != 0
+            except AssertionError:
+                print('Failure to get result for star on query to Gaia Archive. No ZP correction will be applied.')
+                print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
+                return ufloat(config_dict['plx'][0], config_dict['plx'][1]), ufloat(-0.021, 0.013)
 
     # Grab parallax
     plx = ufloat(v[0][0]['Plx'], v[0][0]['e_Plx'])

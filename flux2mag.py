@@ -263,22 +263,36 @@ class Flux2mag:
             self.colors_data = colors_data
 
         # -------------- RETRIEVE STANDARD PHOTOMETRY WITH VIZIER + SIMBAD QUERIES -------------- #
-        # Catalogue query functions for Gaia EDR3, 2MASS, GALEX and WISE.
+        # Catalogue query functions for Gaia DR3, 2MASS, GALEX and WISE.
         # This uses WISE All Sky values instead of ALLWISE for consistency with flux ratio calibration and
         # because these are more reliable at the bright end for W1 and W2.
 
         # Search Vizier for Gaia, WISE and GALEX magnitudes.
         vizier_r = Vizier(columns=["*", "+_r"])
+        # WHY EDR3 NOT DR3? Because DR3 query fails to return fields "added by CDS", e.g. errors on magnitudes.
         v = vizier_r.query_object(name, catalog=['I/350/gaiaedr3', 'II/311/wise', 'II/335/galex_ais'])
+        if len(v) == 0:
+            if len(name) == 5:  # Fix whitespace issue in search (e.g. AIPhe -> AI Phe)
+                name_v = name[0:2] + ' ' + name[2:5]
+                v = vizier_r.query_object(name_v, catalog=['I/350/gaiaedr3', 'II/311/wise', 'II/335/galex_ais'])
+            else:
+                try:
+                    Vizier.clear_cache()
+                    v = vizier_r.query_object(name, catalog=['I/350/gaiaedr3', 'II/311/wise', 'II/335/galex_ais'])
+                    assert len(v) != 0
+                except AssertionError:
+                    raise AttributeError('Unable to retrieve any results from Gaia, WISE or GALEX via Astroquery.\n'
+                                         'Check the target name in config file is correct, e.g. missing whitespaces.')
 
         obs_mag = dict()
+        # Retrieve Gaia EDR3 photometry direct from catalogue
         try:
             obs_mag['G'] = ufloat(v[0][0]['Gmag'], v[0][0]['e_Gmag'])
             obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag'])
             obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag'])
         except IndexError:
-            raise AttributeError("Something went wrong reading Gaia (E)DR3 magnitudes. "
-                                 "Try checking star name is correct and resolved by SIMBAD")
+            raise AttributeError("Something went wrong reading Gaia eDR3 magnitudes. \n"
+                                 "Check the target name in config file is correct, e.g. missing whitespaces.")
 
         # Retrieve WISE photometry direct from catalogue
         for b in ['W1', 'W2', 'W3', 'W4']:
