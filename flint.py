@@ -174,7 +174,7 @@ def valid_teff(params, source):
                 return False
             else:
                 return True
-        elif teff <= 12000:
+        elif teff >= 12000:
             raise ValueError("teb is not currently designed to handle such high Teff. \n"
                              "Open an issue on GitHub if you really want to go this hot...")
         else:
