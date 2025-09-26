@@ -1,0 +1,302 @@
+## Read the guidance at the bottom of this file before use.
+#
+
+## Model parameters for reference SED
+teff1: 6200                   # T_eff,1 [K]
+teff2: 5100                   # T_eff,2 [K]
+logg1: 4.0                    # log(g) for star 1 [cgs]
+logg2: 3.6                    # log(g) for star 2 [cgs]
+m_h:  -0.1                    # [M/H] for both stars.
+aFe:   0.0                    # [alpha/Fe] for both stars.
+
+# Parallax 
+parallax:     # parallax and error, in mas
+  - 5.885 
+  - 0.019 
+
+## Stellar radii - all in nominal solar units.
+# Use EITHER secondary_radius: OR radius_ratio 
+primary_radius:    # Primary star radius and error
+  - 1.8036
+  - 0.0022
+#radius_ratio:      # Secondary radius / primary radius and error
+#  - 
+#  - 
+secondary_radius:  # Secondary star radius and error
+  - 2.9303
+  - 0.0023
+
+## Reddening 
+# Prior on interstellar E(B-V) - value and error
+# Comment out or delete this section to not use a prior
+ebv:
+  - 0.000
+  - 0.014    # Maxted 2025
+
+# Measured flux ratios
+flux_ratios:
+  - tag: u320
+    band: User/IUE.u320
+    value:
+      - 0.342
+      - 0.042
+
+  - tag: u220n
+    band: User/IUE.u220n
+    value:
+      - 0.030
+      - 0.066
+
+  - tag: u220w
+    band: User/IUE.u220w
+    value:
+      - 0.059
+      - 0.090
+
+  - tag: U1
+    band: Generic/Johnson.U
+    value:         # Value and standard error
+      - 0.442
+      - 0.021
+
+  - tag: U2
+    band: Generic/Johnson.U
+    value:         # Value and standard error
+      - 0.446
+      - 0.020
+
+  - tag: B1
+    band: Generic/Johnson.B
+    value:         # Value and standard error
+      - 0.725
+      - 0.011
+
+  - tag: B2
+    band: Generic/Johnson.B
+    value:         # Value and standard error
+      - 0.727
+      - 0.011
+
+  - tag: V1
+    band: Generic/Johnson.V
+    value:         # Value and standard error
+      - 1.011
+      - 0.009
+
+  - tag: V2
+    band: Generic/Johnson.V
+    value:         # Value and standard error
+      - 1.011
+      - 0.009
+
+  - tag: R1
+    band: Generic/Johnson.R
+    value:         # Value and standard error
+      - 1.197
+      - 0.024
+
+  - tag: R2
+    band: Generic/Johnson.R
+    value:         # Value and standard error
+      - 1.198
+      - 0.024
+
+  - tag: I1
+    band: Generic/Johnson.I
+    value:         # Value and standard error
+      - 1.406
+      - 0.023
+
+  - tag: I2
+    band: Generic/Johnson.I
+    value:         # Value and standard error
+      - 1.406
+      - 0.023
+
+  - tag: u
+    band: Generic/Stromgren.u
+    value:         # Value and standard error
+      - 0.475
+      - 0.017
+
+  - tag: v
+    band: Generic/Stromgren.v
+    value:         # Value and standard error
+      - 0.624
+      - 0.009
+
+  - tag: b
+    band: Generic/Stromgren.b
+    value:         # Value and standard error
+      - 0.870
+      - 0.006
+
+  - tag: y
+    band: Generic/Stromgren.y
+    value:         # Value and standard error
+      - 1.036
+      - 0.007
+
+  - tag: TESS
+    band: TESS/TESS.Red
+    value:         # Value and standard error
+      - 1.319
+      - 0.001
+
+  - tag: H
+    band: 2MASS/2MASS.H
+    value:         # Value and standard error
+      - 2.012
+      - 0.010
+
+# Photometry
+magnitudes:
+  - tag: G
+    band: GAIA/GAIA3.G
+    mag:           # Value and standard error 
+      - 8.4305
+      - 0.0028
+
+  - tag: Gbp
+    band: GAIA/GAIA3.Gbp
+    mag:           # Value and standard error 
+      - 8.7814
+      - 0.0028
+
+  - tag: Grp
+    band: GAIA/GAIA3.Grp
+    mag:           # Value and standard error 
+      - 7.9028
+      - 0.0038
+
+  - tag: J
+    band: 2MASS/2MASS.J
+    mag:           # Value and standard error 
+      - +7.301
+      - 0.023
+  - tag: H
+    band: 2MASS/2MASS.H
+    mag:           # Value and standard error 
+      - +6.935
+      - 0.034
+  - tag: Ks
+    band: 2MASS/2MASS.Ks
+    mag:           # Value and standard error 
+      - +6.819
+      - 0.026
+
+  - tag: FUV
+    band: GALEX/GALEX.FUV
+    mag:           # Value and standard error 
+      - +20.473
+      - 1.160
+
+  - tag: W1
+    band: WISE/WISE.W1
+    mag:           # Value and standard error 
+      - +6.729
+      - 0.072
+
+  - tag: W2
+    band: WISE/WISE.W2
+    mag:           # Value and standard error 
+      - +6.790
+      - 0.022
+
+  - tag: W3
+    band: WISE/WISE.W3
+    mag:           # Value and standard error 
+      - +6.807
+      - 0.017
+
+  - tag: u320
+    band: User/IUE.u320
+    mag:           # Value and standard error 
+      - 10.734
+      - 0.035
+
+  - tag: u220n
+    band: User/IUE.u220n
+    mag:           # Value and standard error 
+      - 13.932
+      - 0.100 
+
+  - tag: u220w
+    band: User/IUE.u220w
+    mag:           # Value and standard error 
+      - 14.066
+      - 0.119
+
+# Photometric colors
+colors:
+  - tag: by-09
+    type: by
+    color:         # Value and standard error
+      - 0.431
+      - 0.0037
+
+  - tag: by-78
+    type: by
+    color:         # value and standard error
+      - 0.424
+      - 0.0037
+
+  - tag: m1-09
+    type: m1
+    color:         # value and standard error
+      - 0.209
+      - 0.0041
+
+  - tag: m1-78
+    type: m1
+    color:         # value and standard error
+      - 0.219
+      - 0.0041
+
+  - tag: m1-09
+    type: m1
+    color:         # value and standard error
+      - 0.209
+      - 0.0041
+
+  - tag: c1-78
+    type: c1
+    color:         # value and standard error
+      - 0.357
+      - 0.0066
+
+  - tag: c1-09
+    type: c1
+    color:         # value and standard error
+      - 0.356
+      - 0.0066
+
+### HOW TO USE THIS CONFIGURATION FILE
+#
+## Parallax
+#  With zero-point correction for Gaia, if needed.
+#
+## A note on the stellar radii
+# If you have very precise measurements for radii (0.2% or better),
+# these should be the Rosseland radii. See Miller & Maxted, 
+# 2020MNRAS.497.2899M 
+#
+## Flux ratios
+# tag (str): Unique name for measurement, can be same as band
+# band (str): Bandpass name from SVO filter profile service.
+# value (float): Flux ratio value. Must be greater than 0.
+# error (float): Error in flux ratio.
+
+## Magnitudes
+# tag (str): Unique name for measurement, can be same as band
+# band (str): Bandpass name from SVO filter profile service.
+# mag (float): Value and error for the magnitude
+#
+# Data on the zero-point, etc. for each band must be listed in
+#  config/database.csv. See calspec.py for instructions on generating
+#  these data.
+#
+## colors
+# tag (str): Unique name for measurement, can be same as color ID
+# type (str): Color name. Only Strömgren b-y (by), m1 (m1), c1 (c1)
+# color (float): color value and error.

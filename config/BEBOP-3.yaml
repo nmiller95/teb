@@ -1,0 +1,153 @@
+## Read the guidance at the bottom of this file before use.
+# BEBOP-3 = BD+79 230
+
+## Model parameters for reference SED
+teff1: 6050                   # T_eff,1 [K]
+teff2: 3100                   # T_eff,2 [K]
+logg1: 4.19                   # log(g) for star 1 [cgs]
+logg2: 4.98                   # log(g) for star 2 [cgs]
+m_h:   -0.02                  # [M/H] for both stars.
+aFe:    0.00                  # [alpha/Fe] for both stars.
+
+# Parallax 
+parallax:     # parallax and error, in mas
+  - 8.4861
+  - 0.0188
+
+## Stellar radii - all in nominal solar units.
+# Use EITHER secondary_radius: OR radius_ratio 
+primary_radius:    # Primary star radius and error
+  - 1.3860
+  - 0.0103
+radius_ratio:     # Secondary radius / primary radius and error
+  - 0.19799
+  - 0.00015
+#secondary_radius: # Secondary star radius and error
+#  - 
+#  - 
+
+## Reddening
+# Prior on interstellar E(B-V) - value and error
+# Comment out or delete this section to not use a prior
+ebv:
+  - 0.000
+  - 0.014
+
+# Measured flux ratios
+flux_ratios:
+  - tag: TESS
+    band: TESS/TESS.Red
+    value:         # Value and standard error
+      - 0.002527
+      - 0.000017
+
+# Photometry
+magnitudes:
+  - tag: G
+    band: GAIA/GAIA3.G
+    mag:           # Value and standard error 
+      - 9.1080
+      - 0.0028
+
+  - tag: Gbp
+    band: GAIA/GAIA3.Gbp
+    mag:           # Value and standard error 
+      - 9.3915
+      - 0.0028
+
+  - tag: Grp
+    band: GAIA/GAIA3.Grp
+    mag:           # Value and standard error 
+      - 8.6563
+      - 0.0038
+
+  - tag: J
+    band: 2MASS/2MASS.J
+    mag:           # Value and standard error 
+      - +8.157
+      - 0.023
+  - tag: H
+    band: 2MASS/2MASS.H
+    mag:           # Value and standard error 
+      - +7.934
+      - 0.040
+  - tag: Ks
+    band: 2MASS/2MASS.Ks
+    mag:           # Value and standard error 
+      - +7.860
+      - 0.017
+
+  - tag: NUV
+    band: GALEX/GALEX.NUV
+    mag:           # Value and standard error 
+      - +14.560
+      - 1.0      # Source near edge of detector so set arbitrary error
+
+  - tag: BT
+    band: TYCHO/TYCHO.B_MvB
+    mag:           # Value and standard error 
+      - +9.895
+      - 0.023
+
+  - tag: VT
+    band: TYCHO/TYCHO.V_MvB
+    mag:           # Value and standard error 
+      - +9.320
+      - 0.017
+
+  - tag: W1
+    band: WISE/WISE.W1
+    mag:           # Value and standard error 
+      - +7.805
+      - 0.028
+
+  - tag: W2
+    band: WISE/WISE.W2
+    mag:           # Value and standard error 
+      - +7.840
+      - 0.019
+
+  - tag: W3
+    band: WISE/WISE.W3
+    mag:           # Value and standard error 
+      - +7.814
+      - 0.017
+
+
+# Photometric colors
+#colors:
+#  - tag: b-y
+#    type: by
+#    color:         # Value and standard error
+#      - 
+#      - 
+
+### HOW TO USE THIS CONFIGURATION FILE
+#
+## Parallax
+#  With zero-point correction for Gaia, if needed.
+#
+## A note on the stellar radii
+# If you have very precise measurements for radii (0.2% or better),
+# these should be the Rosseland radii. See Miller & Maxted, 
+# 2020MNRAS.497.2899M 
+#
+## Flux ratios
+# tag (str): Unique name for measurement, can be same as band
+# band (str): Bandpass name from SVO filter profile service.
+# value (float): Flux ratio value. Must be greater than 0.
+# error (float): Error in flux ratio.
+
+## Magnitudes
+# tag (str): Unique name for measurement, can be same as band
+# band (str): Bandpass name from SVO filter profile service.
+# mag (float): Value and error for the magnitude
+#
+# Data on the zero-point, etc. for each band must be listed in
+#  config/database.csv. See calspec.py for instructions on generating
+#  these data.
+#
+## colors
+# tag (str): Unique name for measurement, can be same as color ID
+# type (str): Color name. Only Strömgren b-y (by), m1 (m1), c1 (c1)
+# color (float): color value and error.

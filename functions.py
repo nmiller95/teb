@@ -1,117 +1,41 @@
-from uncertainties import ufloat, correlation_matrix
-from matplotlib import pyplot as plt
-from matplotlib.ticker import MultipleLocator
+import os
 import numpy as np
+from uncertainties import ufloat, correlation_matrix
 from astropy.table import Table
-import astropy.units as u
 from synphot import units
 from scipy.special import legendre
-from scipy.integrate import simps
-import yaml
+from scipy.integrate import simpson
 import emcee
 from multiprocessing import Pool
-import flux_ratio_priors as frp
-from flux_ratios import FluxRatio
-import sys
 from scipy.interpolate import interp1d
 from astroquery.vizier import Vizier
 from zero_point import zpt
+from collections import OrderedDict
 
-
-def list_to_ufloat(two_item_list):
-    """Turns a two item list from yaml input into a ufloat"""
-    return ufloat(two_item_list[0], two_item_list[1])
-
-
-def load_photometry(photometry_file):
+def get_parallax(star_name, zp_correction=True):
     """
-    Reads photometry inputs from photometry.yaml and prepares them for the method
-
-    Returns
-    -------
-    Flux ratios, extra data, colors data as dictionaries
-    """
-    # Load and initialise photometric data from photometry_data.yaml
-    try:
-        stream = open(f'config/{photometry_file}', 'r')
-    except FileNotFoundError as err:
-        print(err)
-        sys.exit()
-    photometry = yaml.safe_load(stream)
-    # Flux ratios - initialised with FluxRatio from flux_ratios.py
-    try:
-        flux_ratios = dict()
-        for f in photometry['flux_ratios']:
-            fr = FluxRatio(f['tag'], f['type'], f['value'][0], f['value'][1])
-            tag, d = fr()
-            flux_ratios[tag] = d
-    except KeyError:
-        print("No flux ratios provided in photometry_data.yaml")
-        flux_ratios = None
-    # Extra magnitudes - read wavelength and response read from specified file
-    try:
-        for e in photometry['extra_data']:
-            e['mag'] = list_to_ufloat(e['mag'])
-            e['zp'] = list_to_ufloat(e['zp'])
-            try:
-                t = Table.read(e['file'], format='ascii')
-                e['wave'] = np.array(t['col1'])
-                e['resp'] = np.array(t['col2'])
-            except OSError:
-                raise SystemExit(f"Unable to read {e['file']}.")
-        extra_data = photometry['extra_data']
-    except TypeError:
-        print("No additional magnitudes provided in photometry_data.yaml")
-        extra_data = None
-    except KeyError:
-        print("No additional magnitudes provided in photometry_data.yaml")
-        extra_data = None
-    # Colors - simple conversion from list to ufloat
-    try:
-        for c in photometry['colors_data']:
-            c['color'] = list_to_ufloat(c['color'])
-        colors_data = photometry['colors_data']
-    except KeyError:
-        print("No colours provided in photometry_data.yaml")
-        colors_data = None
-    return flux_ratios, extra_data, colors_data
-
-
-def parallax_zeropoint(config_dict):
-    """
-    Finds zeropoint and correction for Gaia parallax
+    Gets Gaia DR3 parallax and applied zeropoint correction for named star
 
     Parameters
     ----------
-    config_dict: dict
-        Dictionary containing parameters, loaded from config.yaml
+    star_name: str
+        Source identifier recognised by Vizier.
+
+    zp_correction: bool
+        Whether or not to apply a zero-point correction
 
     Returns
     -------
-    Parallax + error, zeropoint + error in two ufloat objects
+    Parallax + error with zeropoint correction (if applied) as ufloat 
+
     """
     # Read data from Gaia DR3
-    name = config_dict['name']
     vizier_r = Vizier(columns=["**", "+_r"])
-    v = vizier_r.query_object(name, catalog='I/355/gaiadr3')
-    if len(v) == 0:
-        if len(name) == 5:  # Fix whitespace issue in search (e.g. AIPhe -> AI Phe)
-            name_v = name[0:2] + ' ' + name[2:5]
-            v = vizier_r.query_object(name_v, catalog='I/355/gaiadr3')
-        else:
-            try:
-                Vizier.clear_cache()
-                v = vizier_r.query_object(name, catalog='I/355/gaiadr3')
-                assert len(v) != 0
-            except AssertionError:
-                print('Failure to get result for star on query to Gaia Archive. No ZP correction will be applied.')
-                print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
-                return ufloat(config_dict['plx'][0], config_dict['plx'][1]), ufloat(-0.021, 0.013)
-
-    # Grab parallax
+    v = vizier_r.query_object(star_name, catalog='I/355/gaiadr3')
     plx = ufloat(v[0][0]['Plx'], v[0][0]['e_Plx'])
+    if not zp_correction:
+        return plx
 
-    # Retrieve relevant information from EDR3 for the target
     phot_g_mean_mag = v[0][0]['Gmag']
     ecl_lat = v[0][0]['ELAT']
     nu_eff_used_in_astrometry = v[0][0]['nueff']
@@ -124,13 +48,17 @@ def parallax_zeropoint(config_dict):
 
     # Check whether target meets validity range described in docstring
     if phot_g_mean_mag < 6 or phot_g_mean_mag > 21:
-        print(f"G magnitude ({phot_g_mean_mag}) outside of supported range (6-21).")
-        print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
-        return plx, ufloat(-0.021, 0.013)
+        print(f"G magnitude ({phot_g_mean_mag}) outside of supported range"
+              "(6-21).")
+        print("Setting parallax zero-point to mean offset based on quasars"
+              "(-0.021mas)")
+        return plx - ufloat(-0.021, 0.013)
     elif nu_eff_used_in_astrometry < 1.1 or nu_eff_used_in_astrometry > 1.9:
-        print(f"nu_eff_used_in_astronometry of {nu_eff_used_in_astrometry} outside of supported range (1.1-1.9).")
-        print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
-        return plx, ufloat(-0.021, 0.013)
+        print(f"nu_eff_used_in_astronometry of {nu_eff_used_in_astrometry}"
+              "outside of supported range (1.1-1.9).")
+        print("Setting parallax zero-point to mean offset based on quasars"
+              "(-0.021mas)")
+        return plx - ufloat(-0.021, 0.013)
 
     try:
         # Calculate zeropoint for target
@@ -140,8 +68,7 @@ def parallax_zeropoint(config_dict):
             nu_eff_used_in_astrometry,
             pseudocolour,
             ecl_lat,
-            astrometric_params_solved
-        )
+            astrometric_params_solved)
 
         if phot_g_mean_mag <= 11:
             # Flynn+2022 correction based on open and globular clusters
@@ -153,7 +80,8 @@ def parallax_zeropoint(config_dict):
             # Linear interpolation
             f = interp1d(bprp_arr, offset)
             f_err = interp1d(bprp_arr, offset_err)
-            x = np.linspace(min(bprp_arr), max(bprp_arr), num=100, endpoint=True)
+            x = np.linspace(min(bprp_arr), max(bprp_arr), num=100,
+                            endpoint=True)
 
             # Apply color-based correction - a bit hacky
             bprp_target = v[0][0]['BP-RP']
@@ -163,51 +91,24 @@ def parallax_zeropoint(config_dict):
             combined_zp = zp + correction / 1000
             combined_err = np.sqrt(0.013 ** 2 + (corr_err / 1000) ** 2)
             # Return value of Lindegren et al 2021 adjusted by Flynn et al 2022
-            print(f"Correction to Gaia parallax from Flynn+2022 applied {combined_zp:0.3f}")
-            return plx, ufloat(combined_zp, combined_err)
+            print('Correction to Gaia parallax from Flynn+2022 applied '
+                  f'{combined_zp:0.3f}')
+            return plx - ufloat(combined_zp, combined_err)
 
         else:
             # Return value of Lindegren et al 2021
-            print(f"Correction to Gaia parallax from Lindegren+2021 applied {zp:0.3f}")
-            return plx, ufloat(zp, 0.013)
+            print(f"Correction to Gaia parallax from Lindegren+2021 applied"
+                  f"{zp:0.3f}")
+            return plx - ufloat(zp, 0.013)
 
     except ValueError:
-        print("Problem with zero-point offset calculation: check value of astrometric_params_solved")
-        print("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
-        return plx, ufloat(-0.021, 0.013)
+        print('Problem with zero-point offset calculation: check value of'
+              'astrometric_params_solved')
+        print('Setting parallax zero-point to mean offset based on quasars'
+              '(-0.021mas)')
+        return plx - ufloat(-0.021, 0.013)
 
-
-def angular_diameters(config_dict):
-    """
-    Converts input radii and Gaia parallax to angular diameters in mas
-
-    Parameters
-    ----------
-    config_dict: dict
-        Dictionary containing parameters, loaded from config.yaml
-
-    Returns
-    -------
-    Angular diameters for primary and secondary stars as `uncertainties.ufloat` objects
-    """
-    # Parallax load and apply zero-point
-    plx_raw, gaia_zp = parallax_zeropoint(config_dict)
-    plx = plx_raw - gaia_zp
-
-    # Angular diameter = 2*R/d = 2*R*parallax = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
-    # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
-    r1 = list_to_ufloat(config_dict['r1'])
-    if config_dict['apply_k_prior']:
-        print('Using k instead of r_2')
-        r2 = list_to_ufloat(config_dict['k']) * r1
-    else:
-        r2 = list_to_ufloat(config_dict['r2'])
-    theta1 = 2 * plx * r1 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
-    theta2 = 2 * plx * r2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
-    return theta1, theta2
-
-
-def initial_parameters(config_dict, theta1, theta2, ebv_prior):
+def initial_parameters(config_dict, star_data):
     """
     Loads and generates parameters for log likelihood calculations
 
@@ -215,178 +116,91 @@ def initial_parameters(config_dict, theta1, theta2, ebv_prior):
     ----------
     config_dict: dict
         Dictionary containing parameters, loaded from config.yaml
-    theta1: `uncertainties.ufloat`
-        Angular diameter of primary star in mas
-    theta2: `uncertainties.ufloat`
-        Angular diameter of secondary star in mas
-    ebv_prior: `uncertainties.ufloat`
-        Prior on interstellar reddening as ufloat
+    star_data: dict
+        Dictionary containing stellar data
 
     Returns
     -------
-    Parameters and parameter names as two lists
+     Model parameters as an OrderedDict
     """
-    teff1 = config_dict['teff1']
-    teff2 = config_dict['teff2']
+    param_dict = OrderedDict()
+    param_dict['teff1'] = star_data['teff1']
+    param_dict['teff2'] = star_data['teff2']
     # Copy starting values to new variables
-    theta1_ = theta1.n
-    theta2_ = theta2.n
-    ebv_ = ebv_prior.n
-    sigma_ext = config_dict['sigma_ext']
-    sigma_l = config_dict['sigma_l']
+    param_dict['theta_1'] = np.round(star_data['theta1'].n, 6)
+    param_dict['theta_2'] = np.round(star_data['theta2'].n, 6)
+    param_dict['E(B-V)']  = star_data['ebv'][0]
+    param_dict['sigma_m'] = min([config_dict['sigma_m_prior'], 0.001])
+    param_dict['sigma_r'] = min([config_dict['sigma_r_prior'], 0.001])
+
+    if 'colors' in star_data:
+        param_dict['sigma_c'] = min([config_dict['sigma_c_prior'], 0.001])
+
     nc = config_dict['n_coeffs']
+    for j in range(nc):
+        param_dict[f'c_1,{j+1}'] = 0
+        param_dict[f'c_2,{j+1}'] = 0
+    return param_dict
 
-    params = [teff1, teff2, theta1_, theta2_, ebv_, sigma_ext, sigma_l]
-    parname = ['T_eff,1', 'T_eff,2', 'theta_1', 'theta_2', 'E(B-V)', 'sigma_ext', 'sigma_l']
+#-----------------------
 
-    if config_dict['apply_colors']:
-        sigma_c = config_dict['sigma_c']
-        params = params + [sigma_c]
-        parname = parname + ['sigma_c']
-
-    if config_dict['distortion'] == 0:
-        pass
-    elif config_dict['distortion'] == 1:
-        params = params + [0] * nc
-        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
-    elif config_dict['distortion'] == 2:
-        params = params + [0] * 2 * nc
-        parname = parname + ["c_1,{}".format(j + 1) for j in range(nc)]
-        parname = parname + ["c_2,{}".format(j + 1) for j in range(nc)]
-    return params, parname
-
-
-def synthetic_optical_lratios(config_dict, spec1, spec2, theta1, theta2, redlaw, v_ratio, flux_ratios):
+def lnprob(param_list, param_dict, config_dict, flux2mag, flux_ratio_priors,
+           star_data, wmin=1000, wmax=300000, return_flux=False, verbose=False):
     """
-    Estimates the flux ratio in the Johnson/Cousins UBVRI bands using the TESS-band flux ratio and model SEDs.
-
-    WARNING: Don't use this for your proper scientific results! This is for estimating the impact of multi-band light
-    curves on the TEB output (e.g. for observing proposals).
-
-    """
-    print("CAUTION: Calculating synthetic flux ratios using model SEDs. \n"
-          "These are to be used only for information purposes and not for final results!")
-    sigma_sb = 5.670367E-5  # erg.cm-2.s-1.K-4
-    wmin, wmax = (1000, 300000)
-
-    wave = spec1.waveset
-    i = ((wmin * u.angstrom < wave) & (wave < wmax * u.angstrom)).nonzero()
-    wave = wave[i].value
-    flux1 = spec1(wave, flux_unit=units.FLAM).value
-    flux2 = spec2(wave, flux_unit=units.FLAM).value
-    flux1 = flux1 / simps(flux1, wave)
-    flux2 = flux2 / simps(flux2, wave)
-
-    extinction = redlaw.extinction_curve(config_dict['ebv'][0])(wave).value
-    f_1 = 0.25 * sigma_sb * (theta1 / 206264806) ** 2 * config_dict['teff1'] ** 4 * flux1 * extinction
-    f_2 = 0.25 * sigma_sb * (theta2 / 206264806) ** 2 * config_dict['teff2'] ** 4 * flux2 * extinction
-
-    # RESPONSE FUNCTIONS
-    R = dict()
-    syn_lratio = dict()
-    t = Table.read('Response/J_PASP_124_140_table1.dat.fits')  # Johnson - from Bessell, 2012 PASP, 124:140-157
-    for b in ['U', 'B', 'V', 'R', 'I']:
-        wtmp = t['lam.{}'.format(b)]
-        rtmp = t[b]
-        rtmp = rtmp[wtmp > 0]
-        wtmp = wtmp[wtmp > 0]
-        R[b] = interp1d(wtmp, rtmp, bounds_error=False, fill_value=0)
-
-        # SYNTHETIC PHOTOMETRY
-        f_nu1 = (simps(f_1 * R[b](wave) * wave, wave) /
-                 simps(R[b](wave) * 2.998e10 / (wave * 1e-8), wave))
-        f_nu2 = (simps(f_2 * R[b](wave) * wave, wave) /
-                 simps(R[b](wave) * 2.998e10 / (wave * 1e-8), wave))
-        syn_lratio[b] = f_nu2 / f_nu1
-        print(f'Synthetic {b} flux ratio: {syn_lratio[b]}')
-
-        fr = FluxRatio(f'Synth_{b}', b, float(syn_lratio[b].n), float(syn_lratio[b].s))
-        tag, d = fr()
-        flux_ratios[tag] = d
-
-    return flux_ratios
-
-
-def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_prior, redlaw, nc, config_dict,
-           frp_coeffs=None, wmin=1000, wmax=300000, return_flux=False, blobs=False,
-           debug=False, verbose=False):
-    """
-    Log probability function for the fundamental effective temperature of eclipsing binary stars method.
+    Log probability function for the fundamental effective temperature of
+    eclipsing binary stars method.
 
     Parameters
     ----------
-    params: list
-        Model parameters and hyper-parameters as list. Should contain:
-            teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
-    flux2mag: `flux2mag.Flux2Mag`
-        Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
-    lratios: dict
-        Flux ratios and response functions
-    theta1_in: `uncertainties.ufloat`
-        Angular diamater of primary star in mas (initial value)
-    theta2_in: `uncertainties.ufloat`
-        Angular diameter of secondary star in mas (initial value)
-    spec1: `synphot.SourceSpectrum`
-        Model spectrum of primary star
-    spec2: `synphot.SourceSpectrum`
-        Model spectrum of secondary star
-    ebv_prior: `uncertainties.ufloat`
-        Prior on E(B-V)
-    redlaw: `synphot.ReddeningLaw`
-        Reddening law
-    nc: int
-        Number of distortion coefficients for primary star (star 1)
+    param_list: list
+        Model parameters and hyper-parameters as dict.
+    param_dict: OrderedDict
+        OrderedDict of parameters in the same order as param_list
     config_dict: dict
         Dictionary containing configuration parameters, from config.yaml file
-    frp_coeffs: dict, optional
-        Dictionary of flux ratio prior coefficients over suitable temperature range
+    star_data: dict
+        Dictionary containing star data
+    flux2mag: `flux2mag.Flux2Mag`
+        Magnitude data and log-likelihood calculator (Flux2Mag object)
+    flux_ratio_priors: object
+        Instance of Flux_ratio_priors class
     wmin: int, optional
         Lower wavelength cut for model spectrum, in Angstroms
     wmax: int, optional
         Upper wavelength cut for model spectrum, in Angstroms
     return_flux: bool, optional
         Whether to return the wavelength, flux and distortion arrays
-    blobs: bool, optional
-        For the MCMC
-    debug: bool, optional
-        Whether to print extra stuff
     verbose: bool, optional
         Whether to print out all the parameters
 
     Returns
     -------
-    Either log likelihood and log prior (return_flux=False),
-    or wavelength, flux and distortion arrays (return_flux=True)
+    Either  [lnprob, Fbol1, Fbol2, logL1, logL2] or
+    or wavelength, flux and extinction corrected fluxes (return_flux=True)
     """
     sigma_sb = 5.670367E-5  # erg.cm-2.s-1.K-4
-    distortion_type = config_dict['distortion']
 
-    # Read parameters from input and check they're sensible
-    if not config_dict['apply_colors']:
-        len_params = 7
-        teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l = params[0:len_params]
-        sigma_col = None
+    # Update parameter values in param_dict from param_list
+    for p,v in zip(param_dict, param_list):
+        param_dict[p] = v
+
+    for p in ['theta_1', 'theta_2', 'E(B-V)', 'teff1', 'teff2', 'sigma_m',
+              'sigma_r']:
+        if param_dict[p] < 0:
+            return -np.inf, *[None]*4
+
+    if 'sigma_c' in param_dict:
+        sigma_c = param_dict['sigma_c']
+        if sigma_c <0:
+            return -np.inf, *[None]*4
     else:
-        len_params = 8
-        teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l, sigma_col = params[0:len_params]
-        if sigma_col < 0:
-            return -np.inf
-
-    if theta1 < 0:
-        return -np.inf
-    if theta2 < 0:
-        return -np.inf
-    if ebv < 0:
-        return -np.inf
-    if sigma_ext < 0:
-        return -np.inf
-    if sigma_l < 0:
-        return -np.inf
+        sigma_c = 0
 
     # Get wave and flux information from spec1 and spec2 objects
+    spec1 = config_dict['spec1']
+    spec2 = config_dict['spec2']
     wave = spec1.waveset
-    i = ((wmin * u.angstrom < wave) & (wave < wmax * u.angstrom)).nonzero()
-    wave = wave[i]
+    wave = wave[(wmin < wave.value) & (wave.value < wmax)]
     flux1 = spec1(wave, flux_unit=units.FLAM)
     flux2 = spec2(wave, flux_unit=units.FLAM)
     wave = wave.value  # Converts to numpy array
@@ -394,380 +208,238 @@ def lnprob(params, flux2mag, lratios, theta1_in, theta2_in, spec1, spec2, ebv_pr
     flux2 = flux2.value
 
     # Converts wavelength space to x coordinates for Legendre polynomials
-    x = 2 * np.log(wave / np.min(wave)) / np.log(np.max(wave) / np.min(wave)) - 1
+    x = 2*np.log(wave/np.min(wave)) / np.log(np.max(wave)/np.min(wave)) - 1
     # Make empty distortion polynomial object
+    nc = config_dict['n_coeffs']
     distort1 = np.zeros_like(flux1)
-    for n, c in enumerate(params[len_params:len_params+nc]):
-        if abs(c) > 1:
-            return -np.inf  # Check distortion coefficients are between -1 and +1
-        distort1 = distort1 + c * legendre(n + 1)(x)
+    distort2 = np.zeros_like(flux2)
+    coeffs1 = [param_dict[f'c_1,{j+1}'] for j in range(nc)]
+    for n,c in enumerate(coeffs1):
+        if abs(c) > 1: # Check distortion coefficients are between -1 and +1
+            return -np.inf, *[None]*4
+        distort1 +=  c * legendre(n + 1)(x)
+    coeffs2 = [param_dict[f'c_2,{j+1}'] for j in range(nc)]
+    for n,c in enumerate(coeffs2):
+        if abs(c) > 1: # Check distortion coefficients are between -1 and +1
+            return -np.inf, *[None]*4
+        distort2 += c * legendre(n + 1)(x)
     # Make distortion = 0 at 5556A (where Vega z.p. flux is defined)
     i_5556 = np.argmin(abs(wave - 5556))
-    distort1 = distort1 - distort1[i_5556]
+    distort1 -= distort1[i_5556]
+    distort2 -= distort2[i_5556]
     if min(distort1) < -1:
-        return -np.inf
-    flux1 = flux1 * (1 + distort1)
-    flux1 = flux1 / simps(flux1, wave)
+        return -np.inf, *[None]*4
+    flux1 *= (1 + distort1)
+    flux1 /= simpson(flux1,x=wave)
+    if min(distort2) < -1:
+        return -np.inf, *[None]*4
+    flux2 *= (1 + distort2)
+    flux2 /= simpson(flux2,x=wave)
 
-    if distortion_type == 1 or distortion_type == 0:
-        # Applies same distortion polynomial to flux of second star
-        distort2 = distort1
-        flux2 = flux2 * (1 + distort2)
-        flux2 = flux2 / simps(flux2, wave)
-    else:
-        # Makes new distortion polynomial for second star
-        distort2 = np.zeros_like(flux2)
-        for n, c in enumerate(params[len_params+nc:len_params+2*nc:]):
-            if abs(c) > 1:
-                return -np.inf  # Check distortion coefficients are between -1 and +1
-            distort2 = distort2 + c * legendre(n + 1)(x)
-        # Make distortion = 0 at 5556A (where Vega z.p. flux is defined)
-        distort2 = distort2 - distort2[i_5556]
-        if min(distort2) < -1:
-            return -np.inf
-        flux2 = flux2 * (1 + distort2)
-        flux2 = flux2 / simps(flux2, wave)
-
-    # Convert these bolometric fluxes to fluxes observed at the top of Earth's atmosphere
-    extinction = redlaw.extinction_curve(ebv)(wave).value
-    f_1 = 0.25 * sigma_sb * (theta1 / 206264806) ** 2 * teff1 ** 4 * flux1
-    f_2 = 0.25 * sigma_sb * (theta2 / 206264806) ** 2 * teff2 ** 4 * flux2
-    flux = (f_1 + f_2) * extinction  # Total "observed" flux
+    # Convert these bolometric fluxes to fluxes observed at the top of Earth's
+    # atmosphere
+    redlaw = config_dict['reddening_law']
+    extinction = redlaw.extinction_curve(param_dict['E(B-V)'])(wave).value
+    theta1 = param_dict['theta_1']
+    teff1 = param_dict['teff1']
+    flux0_1 = 0.25 * sigma_sb * (theta1 / 206264806) ** 2 * teff1 ** 4 * flux1
+    theta2 = param_dict['theta_2']
+    teff2 = param_dict['teff2']
+    flux0_2 = 0.25 * sigma_sb * (theta2 / 206264806) ** 2 * teff2 ** 4 * flux2
+    flux = (flux0_1 + flux0_2) * extinction # Total "observed" flux
+    flux_1 = flux0_1*extinction
+    flux_2 = flux0_2*extinction
     if return_flux:
-        # Bit of a bodge - not much point returning distort2 if = distort1, but saves it breaking somewhere else
-        return wave, flux, f_1 * extinction, f_2 * extinction, distort1, distort2
+        return wave, flux, flux_1, flux_2, flux0_1, flux0_2
 
-    # Synthetic vs observed colours and magnitudes
-    if config_dict['apply_colors']:
-        chisq, lnlike_m, lnlike_c = flux2mag(wave, flux, sigma_ext, sigma_col, apply_colors=True)
-    else:
-        chisq, lnlike_m = flux2mag(wave, flux, sigma_ext)
+    flux_ratio = flux_2/flux_1
+    sigma_m = param_dict['sigma_m']
+    sigma_r = param_dict['sigma_r']
+    r = flux2mag(wave, flux, flux_ratio, sigma_m, sigma_r, sigma_c)
+    chisq_m, lnlike_m, chisq_c, lnlike_c, lnlike_r, chisq_r = r
+
 
     if verbose:
-        print('Magnitudes')
-        print('Band    Pivot     Observed     Calculated     O-C')
-        for k in flux2mag.syn_mag.keys():
-            o = flux2mag.obs_mag[k]
-            c = flux2mag.syn_mag[k]
-            w = flux2mag.w_pivot[k]
-            print("{:6s} {:6.0f} {:6.3f} {:6.3f} {:+6.3f}".format(k, w, o, c, o-c))
-        if config_dict['apply_colors']:
-            print('Colours')
-            print('Band    Observed     Calculated     O-C')
-            for k in flux2mag.syn_col.keys():
-                o = flux2mag.obs_col[k]
-                c = flux2mag.syn_col[k]
-                print("{:8s} {:6.3f} {:6.3f} {:+6.3f}".format(k, o, c, o-c))
+        print('')
+        print(' Magnitudes')
+        print(' Tag     Pivot Observed         Calculated                  O-C')
+        for tag in flux2mag.obs_mag:
+            o = flux2mag.obs_mag[tag]
+            c = flux2mag.syn_mag[tag]
+            fn = o.tag  # filter name
+            w = flux2mag.filters[fn]['pivot']
+            print(f" {tag:6s} {w:6.0f} {o:6.3f} {c:8.4f} {o-c:+9.4f}")
+        print(f' N = {len(flux2mag.obs_mag)}')
+        print(f' sigma_m = {sigma_m:0.4f}')
+        print(f' chi-squared = {chisq_m:0.2f}')
+        print('',flush=True)
 
-    # Synthetic vs observed flux ratios
-    lnlike_l = 0
-    blob_data = []
-    if verbose:
-        print('Flux ratios')
-        print('Band  Synthetic  Observed +/- Error')
-    for k in lratios.keys():
-        R = lratios[k]['R']
-        if lratios[k]['photon']:
-            l1 = simps(R(wave) * f_1 * wave, wave)
-            l2 = simps(R(wave) * f_2 * wave, wave)
-        else:
-            l1 = simps(R(wave) * f_1, wave)
-            l2 = simps(R(wave) * f_2, wave)
-        v = lratios[k]['Value']
-        lrat = l2 / l1
-        blob_data.append(lrat)
-        wt = 1 / (v.s ** 2 + sigma_l ** 2)
-        lnlike_l += -0.5 * ((lrat - v.n) ** 2 * wt - np.log(wt))
-        if verbose:
-            print("{:4s} {:6.3f} {:6.3f} +/- {:5.3f}".format(k, lrat, v.n, v.s))
+        if len(flux2mag.obs_col) > 0:
+            print(' Colors')
+            print(' Tag     Color  Observed        Calculated       O-C')
+        for tag in flux2mag.obs_col:
+            o = flux2mag.obs_col[tag]
+            c = flux2mag.syn_col[tag]
+            print(f" {tag:8s} {o.tag:5} {o:6.3f} {c:6.3f} {o-c:+6.3f}")
+        if len(flux2mag.obs_col) > 0:
+            print(f' N = {len(flux2mag.obs_col)}')
+            print(f' sigma_c = {sigma_c:0.4f}')
+            print(f' chi-squared = {chisq_c:0.2f}')
+        print('',flush=True)
 
-    # Angular diameter log likelihood
-    # See http://mathworld.wolfram.com/BivariateNormalDistribution.html, equation (1)
+        if len(flux2mag.obs_rat) > 0:
+            print(' Flux ratios')
+            print(' Tag    Pivot   Observed           Calculated     O-C')
+        for tag in flux2mag.obs_rat:
+            o = flux2mag.obs_rat[tag]
+            c = flux2mag.syn_rat[tag]
+            fn = o.tag  # Filter name stored as a tag to observed mag
+            w = flux2mag.filters[fn]['pivot']
+            if o.s > 0.2:
+                print(f" {tag:6s} {w:8.1f} {o:7.1f} {c:7.1f}   {o-c:+6.2f}")
+            elif o.s > 0.02:
+                print(f" {tag:6s} {w:8.1f} {o:7.2f} {c:7.2f}   {o-c:+6.2f}")
+            elif o.s > 0.002:
+                print(f" {tag:6s} {w:8.1f} {o:7.3f} {c:7.3f}   {o-c:+6.3f}")
+            elif o.s > 0.0002:
+                print(f" {tag:6s} {w:8.1f} {o:8.4f} {c:8.4f}   {o-c:+7.4f}")
+            else:
+                print(f" {tag:6s} {w:8.1f} {o:7.4f} {c:7.4f}   {o-c:+6.4f}")
+        if len(flux2mag.obs_rat) > 0:
+            print(f' N = {len(flux2mag.obs_rat)}')
+            print(f' sigma_r = {sigma_r:0.4f}')
+            print(f' chi-squared = {chisq_r:0.2f}')
+        print('',flush=True)
+
+    # Angular diameter log likelihood. See equation (1) from 
+    # See http://mathworld.wolfram.com/BivariateNormalDistribution.html
+    theta1_in = star_data['theta1']
+    theta2_in = star_data['theta2']
     rho = correlation_matrix([theta1_in, theta2_in])[0][1]
-    z = ((theta1 - theta1_in.n) ** 2 / theta1_in.s ** 2 -
-         2 * rho * (theta1 - theta1_in.n) * (theta2 - theta2_in.n) / theta1_in.s / theta2_in.s +
-         (theta2 - theta2_in.n) ** 2 / theta2_in.s ** 2)
+    z = ((theta1 - theta1_in.n) ** 2 / theta1_in.s ** 2 +
+         (theta2 - theta2_in.n) ** 2 / theta2_in.s ** 2 -
+         2 * rho * (theta1 - theta1_in.n) * (theta2 - theta2_in.n) /
+         theta1_in.s / theta2_in.s )
     lnlike_theta = -0.5 * z / (1 - rho ** 2)
 
     # Combine log likelihoods calculated so far
-    lnlike = lnlike_m + lnlike_theta + lnlike_l
-    if config_dict['apply_colors']:
-        lnlike += lnlike_c
+    lnlike = lnlike_m + lnlike_theta + lnlike_r + lnlike_c
 
     # Applying prior on interstellar reddening (if relevant)
     lnprior = 0
-    if config_dict['apply_ebv_prior']:
-        lnprior += -0.5 * (ebv - ebv_prior.n) ** 2 / ebv_prior.s ** 2
+    if star_data['ebv']:
+        ebv_prior = ufloat(star_data['ebv'][0], star_data['ebv'][1])
+        lnprior += -0.5*ebv_prior.std_score(param_dict['E(B-V)'])**2
+    # Exponential priors on external noise hyper-parameters
+    sigma_m_prior = float(config_dict["sigma_m_prior"])
+    lnprior += -sigma_m / sigma_m_prior - np.log(sigma_m_prior)
+    sigma_r_prior = float(config_dict["sigma_r_prior"])
+    lnprior += -sigma_r / sigma_r_prior - np.log(sigma_r_prior)
+    if 'sigma_c' in param_dict:
+        sigma_c_prior = float(config_dict["sigma_c_prior"])
+        lnprior += -sigma_c / sigma_c_prior - np.log(sigma_c_prior)
 
-    # Applying prior on radius ratio (if needed) - now handled in angular_diameters
-    # if config_dict['apply_k_prior']:
-    #     k_prior = list_to_ufloat(config_dict['k'])
-    #     lnprior += -0.5*((theta2/theta1 - k_prior.n)/k_prior.s) ** 2
-
-    # Applying priors on NIR flux ratios (if relevant)
-    if config_dict['apply_fratio_prior']:
-        if not frp_coeffs:
-            pass
-        RV = flux2mag.R['V'](wave)  # Response function of V band over wavelength range
-        lV = simps(RV * f_2, wave) / simps(RV * f_1, wave)  # Synthetic flux ratio in V band
-        # Loads reference temperatures and method from frp configuration file
-        stream = open('config/flux_ratio_priors.yaml', 'r')
-        constraints = yaml.safe_load(stream)
-        tref1_frp = np.mean(np.array(constraints['tref1']))
-        tref2_frp = np.mean(np.array(constraints['tref2']))
-        method = constraints['method']
-        # Calculates flux ratio priors using synthetic flux ratio and temperatures just calculated
-        frp_dict = frp.flux_ratio_priors(lV, teff1, teff2, tref1_frp, tref2_frp, frp_coeffs, method=method)
+    # Applying priors on UV/NIR flux ratios 
+    if 'flux_ratio_priors' in config_dict:
+        # Response function of RP band over wavelength range
+        RRP = flux_ratio_priors.T['RP'](wave) 
+        if flux_ratio_priors.photon['RP']:
+            RRP *= wave
+        # Synthetic flux ratio in RP band
+        lRP = simpson(RRP*flux_2, x=wave) / simpson(RRP*flux_1, x=wave) 
         if verbose:
-            print('Flux ratio priors:')
-        chisq_flux_ratio_priors = 0
-        for b in frp_dict.keys():
-            RX = flux2mag.R[b](wave)  # Response function in any X band over wavelength range
-            lX = simps(RX * f_2 * wave, wave) / simps(RX * f_1 * wave, wave)  # Synthetic flux ratio in any X band
+            print(' Flux ratio priors')
+            print(' Band   Prior      Calculated    O-C')
+        chisq_frp = 0
+        priors = flux_ratio_priors(lRP, teff1, teff2)
+        for b in flux_ratio_priors.bands:
+            # Response function 
+            RX = flux_ratio_priors.T[b](wave) 
+            if flux_ratio_priors.photon[b]:
+                RX *= wave
+            # Synthetic flux ratio in any X band
+            lX = (simpson(RX*flux_2*wave, x=wave) / 
+                  simpson(RX*flux_1*wave, x=wave) )
+            prior = priors[b]
             if verbose:
-                print('{:<2s}: {:0.3f}  {:0.3f}  {:+0.3f}'.format(b, frp_dict[b], lX, frp_dict[b] - lX))
-            chisq_flux_ratio_priors += (lX - frp_dict[b].n) ** 2 / (frp_dict[b].s ** 2 + sigma_l ** 2)
+                print(f' {b:<4s} {prior:0.3f}  {lX:0.3f}  {prior-lX:+0.3f}')
+            chisq_frp += prior.std_score(lX)**2
             # Apply the prior to overall log prior
-            wt = 1 / (frp_dict[b].s ** 2 + sigma_l ** 2)
-            lnprior += -0.5 * ((lX - frp_dict[b].n) ** 2 * wt - np.log(wt))
+            lnprior += -0.5*chisq_frp
         if verbose:
-            print('Flux ratio priors: chi-squared = {:0.2}'.format(chisq_flux_ratio_priors))
+            print(f' Flux ratio priors: chi-squared = {chisq_frp:0.2f}')
 
-    if debug:
-        f = "{:0.1f} {:0.1f} {:0.4f} {:0.4f} {:0.4f} {:0.1f} {:0.4f}"
-        f += " {:0.1e}" * nc
-        if distortion_type == 2:
-            nc2 = len(params) - 8 - nc  # TODO: potential issue here, length of params hard coded
-            f += " {:0.1e}" * nc2
-            f += " {:0.2f}"
-        print(f.format(*(tuple(params) + (lnlike,))))
-    if np.isfinite(lnlike):
-        if blobs:
-            return lnlike + lnprior, *blob_data
-        else:
-            return lnlike + lnprior
+    if np.isfinite(lnlike) and np.isfinite(lnprior):
+        # Bolometric fluxes
+        Fbol_1 = simpson(flux0_1, x=wave)  
+        Fbol_2 = simpson(flux0_2, x=wave)  
+        # We are randomly sampling theta_1 and theta_2, which accounts for
+        # both the errors in the parallax and the stellar radii. So, sample
+        # a random value of the parallax for calculation of radii from
+        # theta_1, theta_2
+        plx = np.random.normal(*star_data['parallax'])
+        logL_1 = np.log10(Fbol_1/plx**2) + 10.494939
+        logL_2 = np.log10(Fbol_2/plx**2) + 10.494939
+        return lnlike + lnprior, Fbol_1, Fbol_2, logL_1, logL_2
     else:
-        return -np.inf
+        return -np.inf, *[None]*4
 
 
-def run_mcmc_simulations(arguments, config_dict, least_squares_solution, n_steps=1000, n_walkers=256):
+def run_mcmc_simulations(least_squares_solution, args):
     """
     Runs MCMC via the emcee module, using the least squares solution as a starting point
 
     Parameters
     ----------
-    arguments: list
-        Starting values as list
-    config_dict: dict
-        Dictionary of configuration parameters from config.yaml
     least_squares_solution: `scipy.optimize.OptimizeResult`
-        Output of minimization
-    n_steps: int, optional
-        Number of MCMC simulations to perform. Default = 1000.
-    n_walkers: int, optional
-        Number of walkers to use. Default = 256.
+      Output of minimization
+    args: list
+      Parameters to pass through to lnprob
+      args = (param_dict, config_dict, flux2mag, flux_ratio_priors, star_data)
 
     Returns
     -------
     `emcee.sampler` object
     """
+    param_dict, config_dict, flux2mag, flux_ratio_priors, star_data = args
     nc = config_dict['n_coeffs']
-    th1, th2 = angular_diameters(config_dict)
-    # Fix problem with number of elements in steps if sigma_c, sigma_l are not parameters
-    if config_dict['apply_colors']:
-        steps = np.array([25, 25,  # T_eff,1, T_eff,2
-                          th1.s, th2.s,  # theta_1 ,theta_2
-                          0.001, 0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l, sigma_c
-                          *[0.01] * nc, *[0.01] * nc])  # c_1,1 ..   c_2,1 ..
+    th1 = star_data['theta1']
+    th2 = star_data['theta2']
+    if ('colors' in star_data) and len(star_data['colors']) > 0:
+        npositive = 8
+        steps = np.array([5, 5,  # T_eff,1, T_eff,2
+                          th1.s/10, th2.s/10, 0.0001,  # theta_1 ,theta_2, E(B-V)
+                          0.0001, 0.0001, 0.0001,  # sigma_m, sigma_r, sigma_c
+                          *[0.001] * nc, *[0.001] * nc])  # c_1,1 ..   c_2,1 ..
     else:
-        steps = np.array([25, 25,  # T_eff,1, T_eff,2
-                          th1.s, th2.s,  # theta_1 ,theta_2
-                          0.001, 0.001, 0.001,  # E(B-V), sigma_ext, sigma_l
-                          *[0.01] * nc, *[0.01] * nc])  # c_1,1 ..   c_2,1 ..
+        npositive = 7
+        steps = np.array([5, 5,  # T_eff,1, T_eff,2
+                          th1.s/10, th2.s/10,  # theta_1 ,theta_2
+                          0.0001, 0.0001, 0.0001,  # E(B-V), sigma_m, sigma_r
+                          *[0.001] * nc, *[0.001] * nc])  # c_1,1 ..   c_2,1 ..
 
+    n_burnin = config_dict['mcmc_n_burnin']
+    n_walkers = config_dict['mcmc_n_walkers']
+    n_sample = config_dict['mcmc_n_sample']
     ndim = len(least_squares_solution.x)
     pos = np.zeros([n_walkers, ndim])
     for i, x in enumerate(least_squares_solution.x):
         pos[:, i] = x + steps[i] * np.random.randn(n_walkers)
+        if i < npositive:
+            pos[:, i] = abs(pos[:, i])
 
     with Pool() as pool:
-        sampler = emcee.EnsembleSampler(n_walkers, ndim, lnprob, args=arguments, pool=pool)
-        sampler.run_mcmc(pos, n_steps, progress=True)
+        print("Running emcee burn-in ...")
+        dtype = [("Fbol_1", float), ("Fbol_2", float),
+                 ("logL_1", float), ("logL_2", float)]
+        sampler = emcee.EnsembleSampler(n_walkers, ndim, lnprob, args=args,
+                                        blobs_dtype=dtype, pool=pool)
+        state = sampler.run_mcmc(pos, n_burnin, 
+                                 progress=config_dict['mcmc_show_progress'])
+        sampler.reset()
+        print("Running emcee sampler ...")
+        sampler.run_mcmc(pos, n_sample, 
+                         progress=config_dict['mcmc_show_progress'])
 
     return sampler
 
-
-def convergence_plot(samples, parameter_names, config_dict):
-    """
-    Generates plots to show convergence of the temperatures and angular diameters
-
-    Parameters
-    ----------
-    samples:
-        samples object from emcee.sampler.get_chain()
-    parameter_names: list
-        List of the parameter names
-    config_dict: dict
-        Dictionary containing parameters, loaded from config.yaml
-
-    Returns
-    -------
-    Convergence plot
-    """
-    # Read info from config file
-    if config_dict['apply_colors']:
-        n_panels = 8
-    else:
-        n_panels = 7
-    teff1, teff2 = config_dict['teff1'], config_dict['teff2']
-    m_h, aFe = config_dict['m_h'], config_dict['aFe']
-    model, binning = config_dict['model_sed'], config_dict['binning']
-    run_id, name = config_dict['run_id'], config_dict['name']
-
-    # Create plot
-    fig, axes = plt.subplots(n_panels, figsize=(10, 10), sharex='col')
-    i0 = 0
-    labels = parameter_names[i0:i0 + n_panels]
-    for i in range(n_panels):
-        ax = axes[i]
-        ax.plot(samples[:, :, i0 + i], "k", alpha=0.3)
-        ax.set(xlim=(0, len(samples)), ylabel=labels[i])
-        ax.yaxis.set_label_coords(-0.1, 0.5)
-    axes[-1].set(xlabel="Step number")
-    fig.suptitle(f"Convergence plot for {name} ({run_id}) \n"
-                 f"Model SED source: {model}\n"
-                 f"Teff1 = {teff1}, Teff2 = {teff2}, [M/H] = {m_h}, [a/Fe] = {aFe}", fontsize=14)
-    fig.align_labels()
-
-    # Save and display
-    if config_dict['save_plots']:
-        fname = f"output/{run_id}_{name}_{teff1}_{teff2}_{m_h}_{aFe}_{binning}A_bins_convergence.png"
-        plt.savefig(fname)
-    plt.show()
-
-
-def print_mcmc_solution(flat_samples, parameter_names):
-    """
-    Prints the best values from the MCMC
-
-    Parameters
-    ----------
-    flat_samples: array_like
-        Flattened chain from the emcee sampler
-    parameter_names: list
-        List of the parameter names
-
-    """
-    for i, pn in enumerate(parameter_names):
-        val = flat_samples[:, i].mean()
-        err = flat_samples[:, i].std()
-        ndp = 1 - min(0, np.floor((np.log10(err))))
-        fmt = '{{:0.{:0.0f}f}}'.format(ndp)
-        v_str = fmt.format(val)
-        e_str = fmt.format(err)
-        print('{} = {} +/- {}'.format(pn, v_str, e_str))
-
-
-def distortion_plot(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior, redlaw, nc,
-                    frp_coeffs, config_dict, flat_samples):
-    """
-    Generates plot showing final integrating functions and distortion for both stars
-    Parameters
-    ----------
-    best_pars: list
-        Model parameters and hyper-parameters as list. Should contain:
-            teff1, teff2, theta1, theta2, ebv, sigma_ext, sigma_l(, sigma_c, [0]*(nc * 1 or 2))
-    flux2mag: `flux2mag.Flux2Mag`
-        Magnitude data and flux-to-mag log-likelihood calculator (Flux2Mag object)
-    lratios: dict
-        Flux ratios and response functions
-    theta1: `uncertainties.ufloat`
-        Angular diameter of primary star in mas (initial value)
-    theta2: `uncertainties.ufloat`
-        Angular diameter of secondary star in mas (initial value)
-    spec1: `synphot.SourceSpectrum`
-        Model spectrum of primary star
-    spec2: `synphot.SourceSpectrum`
-        Model spectrum of secondary star
-    ebv_prior: `uncertainties.ufloat`
-        Prior on E(B-V)
-    redlaw: `synphot.ReddeningLaw`
-        Reddening law
-    nc: int
-        Number of distortion coefficients for primary star (star 1)
-    config_dict: dict
-        Dictionary containing configuration parameters, from config.yaml file
-    frp_coeffs: dict, optional
-        Dictionary of flux ratio prior coefficients over suitable temperature range
-    flat_samples: array_like
-        Flattened chain from the emcee sampler
-
-    Returns
-    -------
-    Distortion plot
-    """
-    if config_dict['distortion'] == 2:
-        n_panels = 3
-        gridspec = {'height_ratios': [5, 2, 2]}
-        wave, flux, f1, f2, d1, d2 = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
-                                            redlaw, nc, config_dict, frp_coeffs, return_flux=True)
-    elif config_dict['distortion'] == 1:
-        n_panels = 2
-        gridspec = {'height_ratios': [4, 2]}
-        wave, flux, f1, f2, d1, _ = lnprob(best_pars, flux2mag, lratios, theta1, theta2, spec1, spec2, ebv_prior,
-                                        redlaw, nc, config_dict, frp_coeffs, return_flux=True)
-    else:
-        return None
-
-    fig, ax = plt.subplots(n_panels, figsize=(8, 3*n_panels), sharex='col', gridspec_kw=gridspec)
-    fig.subplots_adjust(hspace=0.05)
-    fig.suptitle(f"Distortion plot for {config_dict['name']} ({config_dict['run_id']}) \n"
-                 f"Model SED source: {config_dict['model_sed']}\n"
-                 f"Teff1 = {config_dict['teff1']}, Teff2 = {config_dict['teff2']}, "
-                 f"[M/H] = {config_dict['m_h']}, [a/Fe] = {config_dict['aFe']}", fontsize=14)
-
-    # Integrating functions panel
-    ax[0].semilogx(wave, 1e12 * f1, c='#003f5c', label='Primary')  # c='#252A6C'
-    ax[0].semilogx(wave, 1e12 * f2, c='#ffa600', label='Secondary')  # c='#CEC814'
-    ax[0].set(xlim=(1002, 299998), ylim=(-0.0, max(f1)*1e12*1.05), # yticks=(np.arange(0, 0.25, 0.05)),
-              ylabel=r'$f_{\lambda}$  [10$^{-12}$ erg cm$^{-2}$ s$^{-1}$]')
-    ax[0].yaxis.set_minor_locator(MultipleLocator(0.05))
-    ax[0].legend()
-
-    # Primary distortion functions panel
-    ax[1].semilogx(wave, d1, c='black')
-    ax[1].set(xlabel=r'Wavelength [$\AA$]', ylabel=r'$\Delta_1$', ylim=(-0.35, 0.35))
-    ax[1].yaxis.set_minor_locator(MultipleLocator(0.05))
-
-    if config_dict['distortion'] == 2:
-        # Secondary distortion functions panel
-        ax[2].semilogx(wave, d2, c='black')
-        ax[2].set(xlabel=r'Wavelength [$\AA$]', ylabel=r'$\Delta_2$', ylim=(-0.35, 0.35))
-        ax[2].yaxis.set_minor_locator(MultipleLocator(0.05))
-
-        # Plot a subset of distortion polynomials for both distortion panels
-        for i in range(0, len(flat_samples), len(flat_samples) // 64):
-            _, _, _, _, _d1, _d2 = lnprob(
-                flat_samples[i, :], flux2mag, lratios,
-                theta1, theta2, spec1, spec2,
-                ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)
-            ax[1].semilogx(wave, _d1, c='black', alpha=0.1)
-            ax[2].semilogx(wave, _d2, c='black', alpha=0.1)
-    elif config_dict['distortion'] == 1:
-        # Plot a subset of distortion polynomials in only one panel
-        for i in range(0, len(flat_samples), len(flat_samples) // 64):
-            _, _, _, _, _d1, _ = lnprob(
-                flat_samples[i, :], flux2mag, lratios,
-                theta1, theta2, spec1, spec2,
-                ebv_prior, redlaw, nc, config_dict, frp_coeffs, return_flux=True)
-            ax[1].semilogx(wave, _d1, c='black', alpha=0.1)
-
-    fig.align_ylabels()
-
-    # Display plot and save plot to output directory
-    if config_dict['save_plots']:
-        f_name = f"output/{config_dict['run_id']}_{config_dict['name']}_{config_dict['teff1']}_" \
-                 f"{config_dict['teff2']}_{config_dict['m_h']}_{config_dict['aFe']}" \
-                 f"_{config_dict['binning']}A_bins_distortion.png"
-        plt.savefig(f_name)
-    plt.show()

@@ -352,11 +352,13 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     for t_step in (lower, upper):  # switched order for loading shouldn't affect interpolation
         t_params = (t_step, logg, m_h, afe)
         try:
-            print(f"* Loading {source} model from cache: Teff = {round(t_step)}, logg = {logg}, [M/H] =", round(m_h, 1))
+            print(f"* Loading cached {source} model: Teff={round(t_step)},"
+                  f"logg={logg}, [M/H]={round(m_h, 1)}")
             model_file, _ = make_pathname(cache_path, t_params, source, binning)
             spectra.append(SourceSpectrum.from_file(model_file))
         except FileNotFoundError:
-            print(f"* Fetching {source} model from web: Teff = {round(t_step)}, logg = {logg}, [M/H] =", round(m_h, 1))
+            print(f"* Downloading {source} model:"
+                  f"Teff={round(t_step)}, logg={logg}, [M/H]={m_h}")
             t_model = load_spectrum_as_table(s, t_params, source)
             model_file, model_file_0 = make_pathname(cache_path, t_params, source, binning)
             process_spectrum(t_model, model_file, model_file_0, reload, binning)
@@ -396,11 +398,13 @@ def interpolate_logg(s, params, source, cache_path, reload, binning):
     for logg_step in (lower, upper):  # switched order for loading shouldn't affect interpolation
         logg_params = (teff, logg_step, m_h, afe)
         try:
-            print(f"* Loading {source} model from cache: Teff = {teff}, logg = {round(logg_step,1)}, [M/H] = {m_h}")
+            print(f"* Loading cached {source} model:"
+            f"Teff={teff}, logg={round(logg_step,1)}, [M/H]={round(m_h,1)}")
             model_file, _ = make_pathname(cache_path, logg_params, source, binning)
             spectra.append(SourceSpectrum.from_file(model_file))
         except FileNotFoundError:
-            print(f"* Fetching {source} model from web: Teff = {teff}, logg = {round(logg_step,1)}, [M/H] = {m_h}")
+            print(f"* Downloading {source} model: Teff={teff},"
+                  f" logg={round(logg_step,1)}, [M/H]={m_h}")
             logg_model = load_spectrum_as_table(s, logg_params, source)
             model_file, model_file_0 = make_pathname(cache_path, logg_params, source, binning)
             process_spectrum(logg_model, model_file, model_file_0, reload, binning)
@@ -447,16 +451,20 @@ def interpolate_m_h(s, params, source, cache_path, reload, binning):
         else:
             m_h_params = (teff, logg, m_h_step, afe)
         try:
-            print(f"* Loading {source} model from cache: Teff = {teff}, logg = {logg}, [M/H] =", round(m_h_step, 1))
-            model_file, _ = make_pathname(cache_path, m_h_params, source, binning)
+            print(f"* Loading cached {source} model:"
+                  f"Teff={teff}, logg={logg}, [M/H]={round(m_h_step, 1)}")
+            model_file,_ = make_pathname(cache_path,m_h_params,source,binning)
             spectra.append(SourceSpectrum.from_file(model_file))
         except FileNotFoundError:
-            print(f"* Fetching {source} model from web: Teff = {teff}, logg = {logg}, [M/H] =", round(m_h_step, 1))
+            print(f"* Downloading {source} model:"
+                  f"Teff={teff}, logg={logg}, [M/H] ={m_h_step}")
             m_h_model = load_spectrum_as_table(s, m_h_params, source)
-            model_file, model_file_0 = make_pathname(cache_path, m_h_params, source, binning)
-            process_spectrum(m_h_model, model_file, model_file_0, reload, binning)
+            model_file, model_file_0 = make_pathname(cache_path, m_h_params,
+                                                     source, binning)
+            process_spectrum(m_h_model,model_file,model_file_0,reload,binning)
             spectra.append(SourceSpectrum.from_file(model_file))
-    return interpolate_two_models(params, spectra[0], spectra[1], upper, lower, which='m_h')
+    return interpolate_two_models(params, spectra[0], spectra[1],
+                                  upper, lower, which='m_h')
 
 
 class ModelSpectrum(SourceSpectrum):
@@ -512,8 +520,8 @@ class ModelSpectrum(SourceSpectrum):
 
         # If file exists (i.e. already downloaded and binned) and you don't want to re-download it
         if os.path.isfile(model_file) and not reload:
-            print(f'* Loading {source} model from cache: '
-                  f'Teff = {teff}, logg = {logg}, [M/H] = {m_h}, binning = {binning}')
+            print(f'* Loading cached {source} model: '
+                  f'Teff={teff}, logg={logg}, [M/H]={m_h}, binning={binning}')
             return SourceSpectrum.from_file(model_file)
 
         # Get un-binned file if already downloaded
@@ -549,13 +557,16 @@ class ModelSpectrum(SourceSpectrum):
                 if not logg % 0.5:
                     # [M/H] matches available models --> no interpolation needed
                     if valid_m_h(params, source):
-                        print(f'* Fetching {source} model from web: Teff = {teff}, logg = {logg}, [M/H] = {m_h}')
+                        print(f'* Downloading {source} model: Teff={teff},'
+                              f'logg={logg}, [M/H]={m_h}')
                         model = load_spectrum_as_table(s, params, source)
-                        process_spectrum(model, model_file, model_file_0, reload, binning)
+                        process_spectrum(model, model_file, model_file_0,
+                                         reload, binning)
                         return SourceSpectrum.from_file(model_file)
                     # --> [M/H] interpolation only
                     else:
-                        return interpolate_m_h(s, params, source, cls.cache_path, reload, binning)
+                        return interpolate_m_h(s, params, source,
+                                               cls.cache_path, reload, binning)
                 # logg doesn't match available models
                 else:
                     # --> logg interpolation only

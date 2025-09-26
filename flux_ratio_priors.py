@@ -1,224 +1,154 @@
-from astropy.table import Table, join
+import os
 import numpy as np
-from astropy import units as u
-from astroquery.xmatch import XMatch
-from scipy.stats.mstats import theilslopes
-from scipy.optimize import minimize
+from astropy.table import Table
+from scipy.interpolate import RegularGridInterpolator
 from uncertainties import ufloat
-import yaml
-import warnings
-import sys
-warnings.filterwarnings('ignore')  # TODO: catch these warnings properly
+from calspec import getprofile
+from scipy.integrate import simpson
+from scipy.interpolate import interp1d
+from collections import OrderedDict
 
-
-def configure(frp_file='flux_ratio_priors.yaml'):
+class Flux_ratio_priors():
     """
-    Reads the GCS III and WISE data, applies cuts based on config file
+    Calculate flux ratio prior using tabulated color-Teff relations.
 
-    Returns
-    -------
-    Reference temperatures for primary and secondary star, cross-matched tables
-    corresponding to primary and secondary stars based on the ranges specified in the config file
+    __init__: Load data from selected tables and create interpolators
+    __call__: Return flux ratio prior for selected band
+
     """
-    t_hdu1 = Table.read('GCS3_WISE.fits', hdu=1)
-    t_hdu2 = Table.read('GCS3_WISE.fits', hdu=2)
-    t = join(t_hdu1, t_hdu2[(t_hdu2['HIP'] > 0)], 'HIP')
 
-    try:
-        stream = open(f'config/{frp_file}', 'r')
-    except FileNotFoundError as err:
-        print(err)
-        sys.exit()
-    constraints = yaml.safe_load(stream)
+    def __init__(self, bands, teff1=None, teff2=None, 
+                 color_table1='auto', color_table2='auto'):
+        """
+        Reads data from tabulated color-Teff and creates an interpolator
 
-    qual = t['l'] == 0
-    ebv = (t['E(B-V)'] > constraints['E(B-V)'][0]) & (t['E(B-V)'] < constraints['E(B-V)'][1])
-    logg1 = (t['logg'] > constraints['logg1'][0]) & (t['logg'] < constraints['logg1'][1])
-    logg2 = (t['logg'] > constraints['logg2'][0]) & (t['logg'] < constraints['logg2'][1])
-    teff1 = (t['Teff'] > constraints['tref1'][0]) & (t['Teff'] < constraints['tref1'][1])
-    teff2 = (t['Teff'] > constraints['tref2'][0]) & (t['Teff'] < constraints['tref2'][1])
+        Parameters
+        ----------
 
-    t1 = t[qual & ebv & logg1 & teff1]
-    t2 = t[qual & ebv & logg2 & teff2]
+        bands: Selection from :
+            ['FUV', 'NUV', 'BP', 'J', 'H', 'Ks', 'W1', 'W2', 'W3']
+        teff1 - estimate of Teff for star 1 - only used to select table
+        teff2 - estimate of Teff for star 1 - only used to select table
+        color_table1 - 'mdwarf', 'galah' or 'auto'
+        color_table2 - 'mdwarf', 'galah' or 'auto'
 
-    table1 = XMatch.query(cat1=t1, cat2='vizier:II/311/wise',
-                          max_distance=6 * u.arcsec, colRA1='RAJ2000', colDec1='DEJ2000',
-                          colRA2='RAJ2000', colDec2='DEJ2000')
-    table2 = XMatch.query(cat1=t2, cat2='vizier:II/311/wise',
-                          max_distance=6 * u.arcsec, colRA1='RAJ2000', colDec1='DEJ2000',
-                          colRA2='RAJ2000', colDec2='DEJ2000')
+        """
+        if color_table1 == 'auto':
+            if teff1 > 4000:
+                self.color_table1 = 'galah'
+            else:
+                self.color_table1 = 'mdwarf'
+        else:
+            self.color_table1 = color_table1
 
-    tref1 = np.mean(np.array(constraints['tref1']))
-    tref2 = np.mean(np.array(constraints['tref2']))
-    method = constraints['method']
-    flux_ratio = constraints['flux_ratio']
-    Teff1 = constraints['teff1']
-    Teff2 = constraints['teff2']
-    return tref1, tref2, table1, table2, method, flux_ratio, Teff1, Teff2
+        if color_table2 == 'auto':
+            if teff2 > 4000:
+                self.color_table2 = 'galah'
+            else:
+                self.color_table2 = 'mdwarf'
+        else:
+            self.color_table2 = color_table2
 
+        table_path1 = os.path.join('Tables',f'{self.color_table1}_colors.fits')
+        table1 = Table.read(table_path1)
+        table_path2 = os.path.join('Tables',f'{self.color_table2}_colors.fits')
+        table2 = Table.read(table_path2)
 
-def mad(p, x, y):
-    """Mean absolute deviation of the residuals"""
-    return np.mean(abs(y - p[0] - p[1] * x - p[2] * x ** 2))
+        colors1 = [s.replace('s_','') for s in  table1.colnames if 's_' in s]
+        bands1 = [c.strip('RP').strip('-') for c in colors1]
+        colors2 = [s.replace('s_','') for s in  table2.colnames if 's_' in s]
+        bands2 = [c.strip('RP').strip('-') for c in colors2]
 
+        # Check for duplicate entries
+        if len(set(bands)) < len(bands):
+            raise ValueError('Duplicate band in flux_ratio_priors.')
 
-def fitcol(band, table, tref=5777, method='quad'):
-    """
-    Fits sample of GCS-WISE stars with either polynomial or linear relation
+        self.bands = bands
 
-    Parameters
-    ----------
-    band: str
-        Which photometric band to fit over, e.g. 'J'
-    table: `astropy.table.Table`
-        Table containing GCS+WISE data
-    tref: int or float, optional
-        Reference temperature in Kelvin. Default is nominal solar Teff.
-    method: str, optional
-        Type of fit to use. Accepts 'lin' and 'quad' only.
+        nbands = len(bands)
+        values = np.empty([len(table1), len(table2), nbands])
+        sigmas = np.empty([len(table1), len(table2), nbands])
 
-    :return: Coefficients and rms of the fit
-    """
-    # dictionary of R values from Yuan et al., MNRAS 430, 2188–2199 (2013)
-    # extrapolated/guessed for w3 and w4 - negligible for E(B-V)<0.05 anyway
-    R = {'Jmag': 0.72, 'Hmag': 0.46, 'Kmag': 0.306,
-         'W1mag': 0.18, 'W2mag': 0.16, 'W3mag': 0.12, 'W4mag': 0.06}
-    x = (table['Teff'] - tref) / 1000
-    V0 = table['Vmag1'] - 3.1 * table['E(B-V)']
-    m0 = table[band] - R[band] * table['E(B-V)']
-    y = V0 - m0
-    try:
-        x = x.filled(np.nan)
-    except:
-        pass
-    try:
-        y = y.filled(np.nan)
-    except:
-        pass
-    i = np.isfinite(x) & np.isfinite(y)
-    x = x[i]
-    y = y[i]
-    p = theilslopes(y, x)  # starting values for optimiser
+        b2f  = {}  # Translational from band name to SVO FPS filter name
+        b2f['FUV'] = 'GALEX/GALEX.FUV'
+        b2f['NUV'] = 'GALEX/GALEX.NUV'
+        b2f['BP'] = 'GAIA/GAIA3/Gbp'
+        b2f['J'] = '2MASS/2MASS.J'
+        b2f['H'] = '2MASS/2MASS.H'
+        b2f['Ks'] = '2MASS/2MASS.Ks'
+        b2f['W1'] = 'WISE/WISE.W1'
+        b2f['W2'] = 'WISE/WISE.W3'
+        b2f['W3'] = 'WISE/WISE.W3'
+        
+        # Reference band is RP = GAIA/GAIA3.Grp
+        filtername = 'GAIA/GAIA3.Grp'
+        filtertable,photon_ = getprofile(filtername, None)
+        wave = filtertable['Wavelength']
+        resp = filtertable['Transmission']
+        if photon_: 
+            resp /= simpson(wave*resp, x=wave)
+        else:      
+            resp /= simpson(resp, x=wave)
+        T = {'RP': interp1d(wave, resp, bounds_error=False, fill_value=0)}
+        photon = {'RP': photon_}
+        for i,band in enumerate(bands):
+            filtername = b2f[band]
+            filtertable,photon_ = getprofile(filtername, None)
+            wave = filtertable['Wavelength']
+            resp = filtertable['Transmission']
+            if photon_: 
+                resp /= simpson(wave*resp, x=wave)
+            else:      
+                resp /= simpson(resp, x=wave)
+            T[band] = interp1d(wave, resp, bounds_error=False, fill_value=0)
+            photon[band] = photon_
 
-    if method == 'lin':
-        y0 = p[1] + p[0] * x
-        res = abs(y - y0)
-        med = np.median(np.abs(res))
-        i = np.abs(res) < 5 * med
-        rms = res[i].std()
-        return p[1], p[0], rms
-    elif method == 'quad':
-        p = np.array([p[1], p[0], 0])
-        result = minimize(mad, p, args=(x, y), method='Nelder-Mead')
-        p = result.x
-        y0 = p[0] + p[1] * x + p[2] * x ** 2
-        res = abs(y - y0)
-        med = np.median(np.abs(res))  # warning comes from this line
-        i = np.abs(res) < 5 * med
-        rms = res[i].std()
-        return p[0], p[1], p[2], result.fun
-    else:
-        print("Invalid method specified. Use 'quad' or 'lin'.")
+            if band in ['FUV', 'NUV', 'BP']:
+                col = f'{band}-RP'
+                c1 = table1[col].filled(np.nan)
+                c2 = table2[col].filled(np.nan)
+                C2,C1 = np.meshgrid(c2,c1)
+                dm = (C2-C1)
+            else:
+                col = f'RP-{band}'
+                c1 = table1[col].filled(np.nan)
+                c2 = table2[col].filled(np.nan)
+                C2,C1 = np.meshgrid(c2,c1)
+                dm = (C1-C2)
+            values[:,:,i] = 10**(-0.4*dm)
+            s1 = table1[f's_{col}'].filled(np.nan)
+            s2 = table2[f's_{col}'].filled(np.nan)
+            S2,S1 = np.meshgrid(s2,s1)
+            sm = np.hypot(S1,S2) 
+            sigmas[:,:,i] = (10**(-0.4*(dm-sm)) - 10**(-0.4*(dm+sm)))/2
+       
+        points = (table1['T_eff'], table2['T_eff'])
+        self.v_interpolator = RegularGridInterpolator(points, values,
+                                                 bounds_error=False)
+        self.s_interpolator = RegularGridInterpolator(points, sigmas,
+                                                 bounds_error=False)
+        self.T = T
+        self.photon= photon
+                                
 
+    def __call__(self, RP_flux_ratio, teff1, teff2, flux_ratio_band='all'):
+        """
+        Return flux ratio in band flux_ratio_band and error as ufloat
 
-def frp_coeffs(tref1, tref2, table1, table2, method='quad'):
-    """
-    Calculates coefficients for flux ratio prior calculation.
+        May return np.nan if teff1 or teff2 are out of range.
 
-    Parameters
-    ----------
-    tref1: int or float
-        Reference temperature in K for the primary star
-    tref2: int or float
-        Reference temperature in K for the secondary star
-    table1: `astropy.table.Table`
-        Table containing GCS-WISE data in Teff range of primary star
-    table2: `astropy.table.Table`
-        Table containing GCS-WISE data in Teff range of secondary star
-    method: str, optional
-        Type of fit to use. Accepts 'lin' and 'quad' only.
+        Set flux_ratio_band='all' to return a dict with all the flux ratios 
+        that were initially loaded.
 
-    Returns
-    -------
-    Dictionary of coefficients to use in generation of flux ratio priors
-    """
-    data = {}
-    bands = ['Jmag', 'Hmag', 'Kmag', 'W1mag', 'W2mag', 'W3mag', 'W4mag']
-    tags = ['J', 'H', 'Ks', 'W1', 'W2', 'W3', 'W4']
-
-    if method == 'lin':
-        for band, tag in zip(bands, tags):
-            c1, m1, r1 = fitcol(band, table1, tref1, method='lin')
-            c2, m2, r2 = fitcol(band, table2, tref2, method='lin')
-            data[tag] = {'c1': c1, 'm1': m1, 'r1': r1, 'c2': c2, 'm2': m2, 'r2': r2}
-    elif method == 'quad':
-        for band, tag in zip(bands, tags):
-            p01, p11, p21, r1 = fitcol(band, table1, tref1, method='quad')
-            p02, p12, p22, r2 = fitcol(band, table2, tref2, method='quad')
-            data[tag] = {'p01': p01, 'p11': p11, 'p21': p21, 'r1': r2,
-                         'p02': p02, 'p12': p12, 'p22': p22, 'r2': r2}
-    else:
-        print("Invalid method specified. Use 'quad' or 'lin'.")
-    return data
-
-
-def flux_ratio_priors(Vrat, teff1, teff2, tref1, tref2, coeffs, method='quad'):
-    """
-    Calculates a predicted flux ratio for your star in each of the 2MASS and WISE bands
-
-    Parameters
-    ----------
-    Vrat: float
-        Flux ratio of your star in the V band
-    teff1: int or float
-        Temperature of primary star in K
-    teff2: int or float
-        Temperature of secondary star in K
-    tref1: int or float
-        Reference temperature used in generation of coefficients for primary
-    tref2: int or float
-        Reference temperature used in generation of coefficients for secondary
-    coeffs: dict
-        Dictionary of coefficients calculated using frp_coeffs
-    method: str, optional
-        Type of fit to use. Accepts 'lin' and 'quad' only.
-
-    Returns
-    -------
-    Dictionary of flux ratio priors for 2MASS and WISE bands
-    """
-    if method == 'lin':
-        # Return a dictionary of ufloat priors on flux ratios
+        """
+        v = self.v_interpolator([teff1,teff2])
+        s = self.s_interpolator([teff1,teff2])
         d = {}
-        for b in coeffs.keys():
-            # col1 = coeffs[b]['c1'] + coeffs[b]['m1'] * (teff1 - tref1) / 1000.0
-            # col2 = coeffs[b]['c2'] + coeffs[b]['m2'] * (teff2 - tref2) / 1000.0
-            # L = Vrat * 10 ** (0.4 * (col2 - col1))
-            # e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
-            # d[b] = ufloat(L, e_L)
-            x1 = (teff1 - tref1) / 1000
-            col1 = ufloat(coeffs[b]['c1'] + coeffs[b]['m1'] * x1, coeffs[b]['r1'])
-            x2 = (teff2 - tref2) / 1000
-            col2 = ufloat(coeffs[b]['c2'] + coeffs[b]['m2'] * x2, coeffs[b]['r2'])
-            d[b] = Vrat * 10 ** (0.4 * (col2 - col1))
-        return d
+        if flux_ratio_band == 'all':
+            for i,band in enumerate(self.bands):
+                d[band] = RP_flux_ratio*ufloat(v[0][i],s[0][i])
+            return d
 
-    elif method == 'quad':
-        # Return a dictionary of ufloat priors on flux ratios
-        d = {}
-        for b in coeffs.keys():
-            # col1 = coeffs[b]['p01'] + coeffs[b]['p11'] * (teff1 - tref1) / 1000.0 \
-            #     + coeffs[b]['p21'] * ((teff1 - tref1) / 1000.0) ** 2
-            # col2 = coeffs[b]['p02'] + coeffs[b]['p12'] * (teff2 - tref2) / 1000.0 \
-            #     + coeffs[b]['p22'] * ((teff2 - tref2) / 1000.0) ** 2
-            # L = Vrat * 10 ** (0.4 * (col2 - col1))
-            # e_L = np.hypot(coeffs[b]['r1'], coeffs[b]['r2'])
-            # d[b] = ufloat(L, e_L)
-            x1 = (teff1 - tref1) / 1000
-            col1 = ufloat(coeffs[b]['p01'] + coeffs[b]['p11'] * x1 + coeffs[b]['p21'] * x1**2, coeffs[b]['r1'])
-            x2 = (teff2 - tref2) / 1000
-            col2 = ufloat(coeffs[b]['p02'] + coeffs[b]['p12'] * x2 + coeffs[b]['p22'] * x2**2, coeffs[b]['r2'])
-            d[b] = Vrat * 10 ** (0.4 * (col2 - col1))
-        return d
-    else:
-        print("Invalid method specified. Use 'quad' or 'lin'.")
+        i = self.bands.index(flux_ratio_band)
+        return RP_flux_ratio*ufloat(v[0][i], s[0][i])
+

@@ -1,487 +1,449 @@
-from uncertainties import ufloat
-# noinspection PyUnresolvedReferences
-from uncertainties.umath import log10
-from scipy.interpolate import interp1d
-from scipy.integrate import simps
+import os
 import numpy as np
+from uncertainties import ufloat
+from scipy.interpolate import interp1d
+from scipy.integrate import simpson
 from astropy.table import Table
 from astroquery.vizier import Vizier
-from astroquery.simbad import Simbad
-
-
-def galex_zp_correction(band, mag):
-    """
-    Corrects zero-point for GALEX bands using data from Table 4 of Camarota & Holberg (2014), using the distribution of
-    points about the observed magnitude of the binary.
-
-    Parameters
-    ----------
-    band: string
-        Photometric band of observation: NUV, FUV
-    mag: uncertainties.ufloat
-        Observed magnitude and error in band
-
-    Returns
-    -------
-    ufloat containing correction and error to be applied to the default zeropoint for the specified band
-    """
-    # Read data from Table 4 of Camarota & Holberg (2014)
-    t = Table.read('Table4complete.txt', format='ascii', data_start=1)
-    if band == 'NUV':
-        # If bright, can apply correction from Wall et al (2019)
-        if 10.0 <= mag.n <= 16.95:
-            c0, c1, c2 = 3.778, 24.337, -241.018
-            corr_mag = c0 + (c1*mag + c2)**0.5  # N.B. Propagates formal error from observation only
-            return mag-corr_mag
-        elif mag.n > 16.95:
-            return ufloat(0, 0.2)  # Scatter from visual inspection (Fig 1, Wall+2019)
-        else:  # TODO: Future option to manually specify method
-            # Otherwise, calculate correction from Camarota & Holberg
-            galex_mag, galex_mag_err, synth_mag = t['col7'], t['col8'], t['col10']
-            # Check magnitude is within reasonable range for this correction
-            if 12.5 <= mag.n <= 15.5:
-                sample_width = 0.5
-            elif 11.5 <= mag.n < 12.5:
-                sample_width = 1.0
-            else:
-                print(f'No correction applied to GALEX NUV ZP (mag {round(mag.n, 2)} out of range)')
-                return ufloat(0, 0)
-    elif band == 'FUV':
-        # If bright, can apply correction from Wall et al (2019)
-        if 10.0 <= mag.n <= 15.95:
-            c0, c1, c2 = 6.412, 17.63, -192.135
-            corr_mag = c0 + (c1 * mag + c2) ** 0.5  # N.B. Propagates formal error from observation only
-            return mag-corr_mag
-        elif mag.n > 15.95:
-            return ufloat(0, 0.5)  # Scatter from visual inspection (Fig 1, Wall+2019)
-        else:
-            galex_mag, galex_mag_err, synth_mag = t['col5'], t['col6'], t['col9']
-            # Check magnitude is within reasonable range for this correction
-            if 12 <= mag.n <= 17:
-                sample_width = 0.5
-            elif 11 <= mag.n < 12:
-                sample_width = 1.0
-            else:
-                print(f'No correction applied to GALEX FUV ZP (mag {round(mag.n, 2)} out of range)')
-                return ufloat(0, 0)
-    else:
-        print('Tried to make correction to GALEX magnitude zeropoint but band not read correctly.')
-        return ufloat(0, 0)
-
-    # Select sample of stars and find mean value + standard deviation of sample
-    sample_filter = []
-    for i, _ in enumerate(galex_mag):
-        if abs(mag.n - galex_mag[i]) < sample_width:
-            if synth_mag[i] > 0.0:
-                sample_filter.append(True)
-            else:
-                sample_filter.append(False)
-        else:
-            sample_filter.append(False)
-    zp_offset = np.mean((galex_mag - synth_mag)[sample_filter])
-    # zp_mad = mad((galex_mag-synth_mag)[sample_filter])
-    zp_stdev = np.std((galex_mag - synth_mag)[sample_filter])
-
-    return ufloat(zp_offset, zp_stdev)
-
+import warnings
+import astropy.units as u
+from functions import get_parallax
+from calspec import getprofile
 
 class Flux2mag:
     """
-    Stores observed magnitudes and colours and calculates synthetic magnitudes and colours
+    Stores and computed magnitudes, colours and flux ratios
 
-    __init__: Accesses and consolidates magnitude and photometric colors of a star.
-    __call__: Generates synthetic magnitudes and colors from integrating a reference spectrum of Vega.
+    __init__: Initialize instance of class
+    star.
+    __call__: Generates synthetic magnitudes, colors and flux ratios. 
     """
 
-    def __init__(self, name, extra_data=None, colors_data=None):
+    def __init__(self, star_name, star_data=None):
         """
-        Reads in bandpass data from package files. Calculates a standardised response function and pivot wavelength of
-        each bandpass. Retrieves standard photometric data from SIMBAD and processes any extra data supplied.
+        Class to store star data and compare it to synthetic photometry
+        Star data (photometry, parallax, radii) can be loaded from the
+        dictionary star_data or obtained from on-line catalogues. 
 
         Parameters
         ----------
-        name: str
-            Name of star, as understood by SIMBAD
-        extra_data: list, optional
-            List of dictionaries containing information about non-standard magnitudes.
-            Each dictionary must contain:
-                * tag: str,
-                    Photometric band name/label (must be unique)
-                * mag: `uncertainties.ufloat`
-                    Observed AB magnitude with standard error
-                * zp: `uncertainties.ufloat`
-                    Photometric band zero-point and its standard error
-                * wave: array_like
-                    Wavelength array for response function, in angstrom
-                * resp: array_like
-                    Response function
-        colors_data: list, optional
-            List of dictionaries containing information about photometric colors.
-            Each dictionary must contain:
-                * tag: string
-                    Photometric color name/label (must be unique), e.g. '(b-y)_1'
-                * type: string
-                    Type of color. Currently supported are:
-                        * Stromgren: 'by', 'm1', 'c1'
-                * color: `uncertainties.ufloat`
-                    Observed color with standard error.
-                * zp: `uncertainties.ufloat`
-                    Colour zero-point and standard error.
-                * wave: array_like
-                    Wavelength array for response function, in angstrom
-                * resp: array_like
-                    Response function
-                * vega_zp: dict
-                    Contains zero-points for magnitudes used to construct colors, e.g. u,b,v,y, in Vega system
+        star_name: str
+            Name of star - resolvable by SIMBAD if star_data=None
+        star_data: list, optional
+            Dictionary containing photometry, parallax and radii.
+            Use make_files to create a YAML file that can be loaded as a
+            dictionary with the correct format. 
+
         """
 
-        self.name = name
-
-        # Zero-point (Vega magnitude system) information as a dictionary
-        # Zero-point for GALEX bands is from Camarota & Holberg with correction made using the scatter of points
-        # in Figure 4 about the observed magnitude of the binary
-        # N.B. For WISE, these are offsets from Vega to AB magnitudes from Jarret et al.
-        #   "This Vega basis has an overall systematic uncertainty of ∼1.45%." (0.016 mag)
-        self.zp = {
-            'FUV': ufloat(-48.60, 0.134),  # ufloat(-48.43, 0.374),
-            'NUV': ufloat(-48.60, 0.154),  # ufloat(-49.04, 0.883),
-            'G': ufloat(25.6874, 0.0028),
-            'BP': ufloat(25.3385, 0.0028),
-            'RP': ufloat(24.7479, 0.0038),
-            'J': ufloat(-0.025, 0.005),
-            'H': ufloat(+0.004, 0.005),
-            'Ks': ufloat(-0.015, 0.005),
-            'W1': ufloat(2.699, 0.0016),
-            'W2': ufloat(3.339, 0.0016),
-            'W3': ufloat(5.174, 0.0016),
-            'W4': ufloat(6.620, 0.0016)
-        }
-
-        # Flux integrals for reference Vega spectrum
-        self.f_vega = {
-            'J': 6.272182574976323e-11,
-            'H': 4.705019995520602e-11,
-            'Ks': 2.4274737135123822e-11
-        }
-
-        # Response functions as a dictionary of interpolating functions
-        R = dict()
-
-        # Pivot wavelength using equation (A16) from Bessell & Murphy (2011)
-        def wp(wavelength, response):
-            return np.sqrt(simps(response * wavelength, wavelength) / simps(response / wavelength, wavelength))
-
-        w_pivot = dict()
-
-        # -------------- READ IN BANDS, CALCULATE RESPONSE FUNCTIONS AND PIVOT WAVELENGTHS -------------- #
-        # Johnson - from Bessell, 2012 PASP, 124:140-157
-        t = Table.read('Response/J_PASP_124_140_table1.dat.fits')
-        for b in ['U', 'B', 'V', 'R', 'I']:
-            wtmp = t['lam.{}'.format(b)]
-            rtmp = t[b]
-            rtmp = rtmp[wtmp > 0]
-            wtmp = wtmp[wtmp > 0]
-            R[b] = interp1d(wtmp, rtmp, bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(wtmp, rtmp)
-
-        # GALEX
-        for b in ['FUV', 'NUV']:
-            t = Table.read('Response/EA-{}_im.tbl'.format(b.lower()), format='ascii', names=['w', 'A'])
-            R[b] = interp1d(t['w'], t['A'], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(t['w'], t['A'])
-
-        # Gaia (E)DR3
-        names = ['wave', 'G', 'e_G', 'BP', 'e_BP', 'RP', 'e_RP']
-        t = Table.read('Response/GaiaEDR3_passbands.dat',
-                       format='ascii', names=names)
-        w = t['wave'] * 10
-        for b in ['G', 'BP', 'RP']:
-            i = (t[b] < 99).nonzero()
-            R[b] = interp1d(w[i], t[b][i], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(w[i], t[b][i])
-
-        # 2MASS
-        for k, b in enumerate(['J', 'H', 'Ks']):
-            t = Table.read('Response/sec6_4a.tbl{:1.0f}.dat'.format(k + 1), format='ascii', names=['w', 'T'])
-            R[b] = interp1d(t['w'] * 1e4, t['T'], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(t['w'] * 1e4, t['T'])
-
-        # ALLWISE - QE-based RSRs from
-        # http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
-        for b in ('W1', 'W2', 'W3', 'W4'):
-            t = Table.read("Response/RSR-{}.txt".format(b),
-                           format='ascii', names=['w', 'T', 'e'])
-            R[b] = interp1d(t['w'] * 1e4, t['T'], bounds_error=False, fill_value=0)
-            w_pivot[b] = wp(t['w'] * 1e4, t['T'])
-
-        # Process response functions in extra_data
-        if extra_data:
-            for x in extra_data:
-                b = x['tag']
-                w = x['wave']
-                r = x['resp']
-                R[b] = interp1d(w, r, bounds_error=False, fill_value=0)
-                w_pivot[b] = wp(w, r)
-                self.zp[b] = x['zp']
-            self.extra_data = extra_data
-        else:
-            self.extra_data = None
-
-        self.R = R
-        self.w_pivot = w_pivot
-
-        # Prepare colours data (if given)
-        if colors_data:
-            for x in colors_data:
-                # Strömgren colours
-                if x['type'] in ['by', 'm1', 'c1']:
-                    stromgren_w, stromgren_r = {}, {}
-                    for m in ('u', 'v', 'b', 'y'):
-                        # Reads individual filter info from files
-                        t = Table.read("Response/{}_Bessell2005.csv".format(m))
-                        stromgren_w[m] = np.array(t['wave'])
-                        stromgren_r[m] = np.array(t['response'])
-
-                    stromgren_v = {
-                        'u': 9.139833801171253e-07,
-                        'v': 1.2227871972005228e-06,
-                        'b': 1.0300321185051395e-06,
-                        'y': 7.412341517648064e-07
-                    }
-                    # Zero point and error is average colour o-c offset and standard deviation
-                    if x['type'] == 'by':
-                        x['zp'] = ufloat(-0.0014, 0.0045)
-                    elif x['type'] == 'm1':
-                        x['zp'] = ufloat(0.0243, 0.0062)
-                    elif x['type'] == 'c1':
-                        x['zp'] = ufloat(-0.0102, 0.0083)
-
-                    x['wave'] = stromgren_w
-                    x['resp'] = stromgren_r
-                    x['vega_zp'] = stromgren_v
-
-            self.colors_data = colors_data
-
-        # -------------- RETRIEVE STANDARD PHOTOMETRY WITH VIZIER + SIMBAD QUERIES -------------- #
-        # Catalogue query functions for Gaia DR3, 2MASS, GALEX and WISE.
-        # This uses WISE All Sky values instead of ALLWISE for consistency with flux ratio calibration and
-        # because these are more reliable at the bright end for W1 and W2.
-
-        # Search Vizier for Gaia, WISE and GALEX magnitudes.
-        vizier_r = Vizier(columns=["*", "+_r"])
-        # WHY EDR3 NOT DR3? Because DR3 query fails to return fields "added by CDS", e.g. errors on magnitudes.
-        v = vizier_r.query_object(name, catalog=['I/350/gaiaedr3', 'II/311/wise', 'II/335/galex_ais'])
-        if len(v) == 0:
-            if len(name) == 5:  # Fix whitespace issue in search (e.g. AIPhe -> AI Phe)
-                name_v = name[0:2] + ' ' + name[2:5]
-                v = vizier_r.query_object(name_v, catalog=['I/350/gaiaedr3', 'II/311/wise', 'II/335/galex_ais'])
+        def loadfiltertable(filtername, photon, newfilter=False):
+            if newfilter:
+                filtertable, photon = getprofile(filtername, None)
             else:
-                try:
-                    Vizier.clear_cache()
-                    v = vizier_r.query_object(name, catalog=['I/350/gaiaedr3', 'II/311/wise', 'II/335/galex_ais'])
-                    assert len(v) != 0
-                except AssertionError:
-                    raise AttributeError('Unable to retrieve any results from Gaia, WISE or GALEX via Astroquery.\n'
-                                         'Check the target name in config file is correct, e.g. missing whitespaces.')
+                filtertable = getprofile(filtername, -1)
+            wave = filtertable['Wavelength']
+            resp = filtertable['Transmission']
+            # Normalize spectral response function here
+            if photon:
+                resp /= simpson(wave*resp, x=wave)
+            else:
+                resp /= simpson(resp, x=wave)
+            T = interp1d(wave, resp, bounds_error=False, fill_value=0)
+            if newfilter:
+                pivot = np.sqrt(simpson(resp*wave, x=wave) /
+                                simpson(resp/wave, x=wave))
+                return T, photon, pivot
+            else:
+                return T
 
-        obs_mag = dict()
-        # Retrieve Gaia EDR3 photometry direct from catalogue
-        try:
-            obs_mag['G'] = ufloat(v[0][0]['Gmag'], v[0][0]['e_Gmag'])
-            obs_mag['BP'] = ufloat(v[0][0]['BPmag'], v[0][0]['e_BPmag'])
-            obs_mag['RP'] = ufloat(v[0][0]['RPmag'], v[0][0]['e_RPmag'])
-        except IndexError:
-            raise AttributeError("Something went wrong reading Gaia eDR3 magnitudes. \n"
-                                 "Check the target name in config file is correct, e.g. missing whitespaces.")
+        # Load photometry filter database
+        dbpath = os.path.join('config','database.csv')
+        # Put bool ahead of str in converters so True,False are boolean
+        converters = {'*': [int, float, bool, str]} 
+        database = Table.read(dbpath, converters=converters)
 
-        # Retrieve WISE photometry direct from catalogue
-        for b in ['W1', 'W2', 'W3', 'W4']:
-            try:
-                if type(v[1][0][f'{b}mag']) == np.float32 and type(v[1][0][f'e_{b}mag']) == np.float32:
-                    obs_mag[b] = ufloat(v[1][0][f'{b}mag'], v[1][0][f'e_{b}mag'])
-                else:
-                    print(f"Unable to find magnitude for {b} band in WISE catalog (II/311/wise).")
-            except IndexError:
-                print(f"Unable to find magnitude for {b} band in WISE catalog (II/311/wise).")
+        self.filters = {}   # Transmission curve interpolation functions
+        for db in database:
+            filtername = db['filtername']
+            if filtername in ['by','m1','c1']:  # Stromgren uvby indices
+                filterdata = {'type':'col'}
+                for k in db.colnames:
+                    if not k in ['filtername','pivot']:
+                        filterdata[k] = db[k]
+            else:
+                filterdata = {'type':'mag'}
+                for k in db.colnames:
+                    if not k in ['filtername']:
+                        filterdata[k] = db[k]
+                filterdata['T'] = loadfiltertable(filtername, db['photon'])
+            self.filters[filtername] = filterdata
+       
+        # Stromgren filters for computing by, m1, c1
+        # zero-point calibration in calspec.py assumes photon=False
+        self.uvby = {}
+        for b in ['u','v','b','y']: 
+            filtername = f'Generic/Stromgren.{b}'
+            self.uvby[b] = loadfiltertable(filtername, False)
+        
+        if star_data is None:    # Populate star_data from catalogues
+            self.obs_mag = {}
 
-        # Retrieve GALEX photometry direct from catalogue
-        for b in ['FUV', 'NUV']:
-            try:
-                if type(v[2][0][f'{b}mag']) == np.float64:
-                    obs_mag[b] = ufloat(v[2][0][f'{b}mag'], v[2][0][f'e_{b}mag'])
-                    self.zp[b] -= galex_zp_correction(b, obs_mag[b])
-                    print(f"Correcting GALEX photometric ZP: Observed {b} mag: {obs_mag[b]}, New ZP: {self.zp[b]}")
-            except IndexError:
-                print(f"Unable to find magnitude for {b} band in GALEX catalog (II/335/galex_ais).")
+            # Gaia DR3 parallax and applied zeropoint correction
+            self.parallax = get_parallax(star_name)
 
-        # Search SIMBAD for 2MASS J, H, Ks magnitudes.
-        sb = Simbad()
-        sb.add_votable_fields('flux(J)', 'flux_error(J)', 'flux(H)', 'flux_error(H)', 'flux(K)', 'flux_error(K)')
-        sb_tab = sb.query_object(name)
-        if not sb_tab:
-            print("Unable to find any 2MASS magnitudes for target via SIMBAD search.")
-        else:
-            for b in ['J', 'H', 'K']:
-                try:
-                    if b == 'K':
-                        obs_mag['Ks'] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
+            # Vizier photometry catalogue query. Note use of 'all' here
+            # instead of '*' to _really_ get all the columns avaiable.
+            vizier_r = Vizier(columns=["all", "+_r"])
+            cats = ['I/355/gaiadr3',
+                    'II/246/out',    # 2MASS
+                    'II/335/galex_ais',
+                    'I/259/tyc2',
+                    'II/349/ps1',
+                    'II/379/smssdr4',
+                    'II/328/allwise']
+            star_name_ = star_name.replace(' ','_')
+            v = vizier_r.query_object(star_name_, catalog=cats,
+                                      radius=2*u.arcsec)
+            if len(v) == 0:
+                msg = f'No data returned from Vizier for target {star_name_}'
+                raise AttributeError(msg) 
+
+            # Data to unpack vizier output into a set of dictionaries
+            # 'f2c' dict to convert filtername to column names with the
+            # help of the string formats 'cfmt' and 'efmt' (for the error).
+            # Column names are also used as the keys to store magnitudes
+            # 'f2k' is the filter name to dict key - can the same as f2c
+            unpack = {}
+
+            # Gaia DR3
+            tmp = {'cat':'I/355/gaiadr3'}
+            tmp['f2c'] = {'GAIA/GAIA3.G':'G',
+                          'GAIA/GAIA3.Gbp':'BP',
+                          'GAIA/GAIA3.Grp':'RP'} 
+            tmp['f2k'] = {'GAIA/GAIA3.G':'G',
+                          'GAIA/GAIA3.Gbp':'Gbp',
+                          'GAIA/GAIA3.Grp':'Grp'} 
+            tmp['cfmt'] = '{}mag'
+            tmp['efmt'] = 'e_{}mag'
+            unpack['Gaia DR3'] = tmp
+
+            # 2MASS
+            tmp = {'cat':'II/246/out'}
+            tmp['f2c']  = {'2MASS/2MASS.J':'J',
+                           '2MASS/2MASS.H':'H',
+                           '2MASS/2MASS.Ks':'K'} 
+            tmp['f2k']  = {'2MASS/2MASS.J':'J',
+                           '2MASS/2MASS.H':'H',
+                           '2MASS/2MASS.Ks':'Ks'} 
+            tmp['cfmt'] = '{}mag'
+            tmp['efmt'] = 'e_{}mag'
+            unpack['2MASS'] = tmp
+
+            # GALEX
+            tmp = {'cat':'II/335/galex_ais'}
+            tmp['f2c'] = {'GALEX/GALEX.FUV':'FUV',
+                          'GALEX/GALEX.NUV':'NUV'} 
+            tmp['f2k'] = tmp['f2c']
+            tmp['cfmt'] = '{}mag'
+            tmp['efmt'] = 'e_{}mag'
+            unpack['GALEX'] = tmp
+
+            # Tycho-2
+            tmp = {'cat':'I/259/tyc2'}
+            tmp['f2c'] = {'TYCHO/TYCHO.B_MvB':'BT',
+                          'TYCHO/TYCHO.V_MvB':'VT'} 
+            tmp['f2k'] = tmp['f2c']
+            tmp['cfmt'] = '{}mag'
+            tmp['efmt'] = 'e_{}mag'
+            unpack['Tycho-2'] = tmp
+
+            # SkyMapper DR4, u,v
+            tmp = {'cat':'II/379/smssdr4'}
+            tmp['f2c'] = {'SkyMapper/SkyMapper.u':'u',
+                          'SkyMapper/SkyMapper.v':'v'} 
+            tmp['f2k'] = tmp['f2c']
+            tmp['cfmt'] = '{}PSF'
+            tmp['efmt'] = 'e_{}PSF'
+            unpack['SkyMapper DR4'] = tmp
+
+            # PAN-STARRS
+            tmp = {'cat':'II/349/ps1'}
+            tmp['f2c'] = {'PAN-STARRS/PS1.g':'g',
+                          'PAN-STARRS/PS1.r':'r',
+                          'PAN-STARRS/PS1.i':'i',
+                          'PAN-STARRS/PS1.z':'z',
+                          'PAN-STARRS/PS1.y':'y'}
+            tmp['f2k'] = tmp['f2c']
+            tmp['cfmt'] = '{}mag'
+            tmp['efmt'] = 'e_{}mag'
+            unpack['PAN-STARSS'] = tmp
+
+            # ALLWISE
+            tmp = {'cat':'II/328/allwise'}
+            tmp['f2c'] = {'WISE/WISE.W1':'W1',
+                          'WISE/WISE.W2':'W2',
+                          'WISE/WISE.W3':'W3'} 
+            tmp['f2k'] = tmp['f2c']
+            tmp['cfmt'] = '{}mag'
+            tmp['efmt'] = 'e_{}mag'
+            unpack['ALLWISE'] = tmp
+
+            for name in unpack:
+                cat = unpack[name]['cat']
+                if cat in v.keys():
+                    r = v[v.keys().index(cat)]
+                    ns = len(r)
+                    if ns > 1:
+                        m=f'Found {ns} {name} sources within 2" of {star_name}'
+                        warnings.warn(m,UserWarning)
+                    r = r[0]
+                    f2c = unpack[name]['f2c']
+                    f2k = unpack[name]['f2k']
+                    for f in f2c:  # Loop over filter names
+                        cfmt = unpack[name]['cfmt']
+                        efmt = unpack[name]['efmt']
+                        tag = f2c[f]
+                        cv  = cfmt.format(tag)   # Column name for value
+                        ce  = efmt.format(tag)   # Column name for error
                         try:
-                            assert type(sb_tab['FLUX_{}'.format(b)][0]) is np.float32
-                        except AssertionError:
-                            print(f"Unable to find magnitude for 2MASS Ks band via SIMBAD search.")
-                            obs_mag.pop('Ks')
-                    else:
-                        obs_mag[b] = ufloat(sb_tab['FLUX_{}'.format(b)][0], sb_tab['FLUX_ERROR_{}'.format(b)][0])
-                        try:
-                            assert type(sb_tab['FLUX_{}'.format(b)][0]) is np.float32
-                        except AssertionError:
-                            print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
-                            obs_mag.pop(b)
-                except KeyError:
-                    pass
-                    # print(f"Unable to find magnitude for 2MASS {b} band via SIMBAD search.")
+                            umag = ufloat(r[cv], r[ce], tag=f)
+                        except KeyError:
+                            continue
+                        if not (np.isfinite(umag.n) and np.isfinite(umag.s)):
+                            continue
+                        key = f2k[f]
+                        self.obs_mag[key] = umag
+                        if f in self.filters:
+                            magmin = self.filters[f]['magmin']
+                            magmax = self.filters[f]['magmax']
+                            if (r[cv] < magmin) or (r[cv] > magmax):
+                                m = f'{f2c[f]} magnitude {r[cv]:0.2f} outside '
+                                m+=f'zero-point calibration range '
+                                m+=f'{magmin:0.2f} - {magmax:0.2f}'
+                                warnings.warn(m,UserWarning)
+                        else:
+                            m = f'Filter {f} missing from zero-point database'
+                            warnings.warn(m,UserWarning)
 
-        # Add magnitudes from extra_data
-        if extra_data:
-            for x in extra_data:
-                obs_mag[x['tag']] = x['mag']
+        else: 
+        # Load photometry, parallax, colours and flux ratios from star_data
 
-        self.obs_mag = obs_mag
+        # Angular diameter = 2*R/d 
+        #                  = 2*R*parallax 
+        #                  = 2*(R/Rsun)*(pi/mas) * R_Sun/kpc
+        # R_Sun = 6.957e8 m. parsec = 3.085677581e16 m
+            plx = ufloat(*star_data['parallax'])
+            r1 = ufloat(*star_data['primary_radius'])
+            if 'radius_ratio' in star_data:
+                if 'secondary_radius' in star_data:
+                    m='Both radius_ratio and secondary_radius in star data'
+                    raise ValueError(m)
+                r2 = ufloat(*star_data['radius_ratio']) * r1
+            else:
+                r2 = ufloat(*star_data['secondary_radius'])
+            _const_ = 2 * 6.957e8 / 3.085677581e19 * 180 * 3600 * 1000 / np.pi
+            t1 = _const_ * plx * r1
+            t2 = _const_ * plx * r2
+            star_data['theta1'] = t1
+            star_data['theta2'] = t2
+            print(f' Radius_1 = {r1:0.4f} R_SunN')
+            print(f' Radius_2 = {r2:0.4f} R_SunN')
+            print(f' Parallax = {plx:0.4f} mas')
+            print(f' theta_1 = {t1:0.4f} mas')
+            print(f' theta_2 = {t2:0.4f} mas')
 
-        # Add colors from colors_data
-        if colors_data:
-            obs_col = dict()
-            for x in colors_data:
-                obs_col[x['tag']] = x['color']
-            self.obs_col = obs_col
-        else:
-            self.obs_col = None
+            try:
+                self.ebv = ufloat(*star_data['ebv'])
+            except KeyError:
+                self.ebv = None
+                warnings.warn('No prior on E(B-V)', UserWarning)
 
-    def __call__(self, wave, f_lambda, sig_ext=0, sig_col=0, apply_colors=False):
+            self.obs_mag = {}
+            if 'magnitudes' in star_data:
+                for mag in star_data['magnitudes']:
+                    key = mag['tag']
+                    filtername = mag['band']
+                    umag = ufloat(*mag['mag'], tag=filtername)  
+                    self.obs_mag[key] = umag
+            print(f' Loaded {len(self.obs_mag)} magnitudes.')
+
+            self.obs_col = {}
+            if 'colors' in star_data:
+                for color in star_data['colors']:
+                    key = color['tag']
+                    colorname = color['type']
+                    ucol = ufloat(*color['color'], tag=colorname) 
+                    self.obs_col[key] = ucol
+            nc = len(self.obs_col)
+            if nc == 0:
+                print(' No color indices loaded.')
+            elif nc == 1:
+                print(f' Loaded 1 color index.') 
+            else:
+                print(f' Loaded {nc} color indices.')
+
+            self.obs_rat = {}
+            if 'flux_ratios' in star_data:
+                for flux_ratio in star_data['flux_ratios']:
+                    key = flux_ratio['tag']
+                    fn = flux_ratio['band']   # filtername 
+                    flux_ratio = ufloat(*flux_ratio['value'], tag=fn)
+                    self.obs_rat[key] = flux_ratio
+                    if not fn in self.filters:
+                        T,photon,pivot = loadfiltertable(fn, None,
+                                                         newfilter=True)
+                        self.filters[fn] = {'photon': photon, 
+                                            'pivot': pivot,
+                                            'T': T }
+            nr = len(self.obs_rat)
+            if nr == 0:
+                print(' No flux ratios loaded.')
+            elif nr == 1:
+                print(f' Loaded 1 flux ratio.') 
+            else:
+                print(f' Loaded {nr} flux ratios.')
+            print('',flush=True)
+
+#------------------------------------------------------
+
+    def __call__(self, wave, flux, flux_ratio, sigma_m, sigma_r, sigma_c):
         """
-        Integrates flux over the defined passbands and returns chi-square of fit to observed magnitudes.
+        Calculate synthetic photometry magnitudes, colours, and flux ratios.
 
         Parameters
         ----------
         wave: `synphot.SourceSpectrum.waveset`
             Wavelength range over which the flux is defined, in Angstrom
-        f_lambda: array_like
-            Must be call-able with argument lambda = wavelength in Angstrom
-        sig_ext: float, optional
-            Amount of external noise to the magnitudes
-        sig_col: float, optional
-            Amount of external noise to the colors
-        apply_colors: bool. optional
-            Whether to include colours in the chi-square fit to observed magnitudes
+        flux: array_like
+           Flux of source (f_lambda in ergs.s-1.cm-2.A-1)
+        flux_ratio: array_like
+            Flux ratio on the same wavelength scale are f_lambda:
+        mag_list: array_like
+            Bands in which to calculate magnitudes (SVO fps name)
+        col_list: array_like
+            List of color indices to calculate (by, m1, c1, ...)
+        fratio_list: array_like
+            Bands in which to calculate flux ratios (SVO fps name)
+
+        All bands and colors must be in config/database.csv
 
         Returns
         -------
-        Chi-square of the fit to observed magnitudes, and log likelihoods
+        mags, cols, fratios - lists of ufloats.
         """
 
-        syn_mag = dict()
-
-        # Calculate synthetic magnitude for GALEX bands
-        for b in ['FUV', 'NUV']:
-            try:
-                if self.obs_mag[b]:
-                    R = self.R[b]
-                    f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                            simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
-                    syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
-            except KeyError:
-                pass
-
-        # Calculate synthetic magnitude for Gaia bands
-        p_a = 0.7278  # collecting (pupil) area of Gaia
-        hc9 = 1.986445824e-16  # 10^9 hc
-        # /10000 is conversion from erg/s/cm^2/A to W/m^2/nm
-        for b in ['G', 'BP', 'RP']:
-            photon_flux = p_a * simps(self.R[b](wave) * wave * f_lambda / 10000, wave) / hc9
-            syn_mag[b] = -2.5 * np.log10(photon_flux) + self.zp[b]
-
-        # Calculate synthetic magnitude for 2MASS bands
-        # "+20" to account for wave in A not um
-        for b in ['J', 'H', 'Ks']:
-            try:
-                if self.obs_mag[b]:
-                    v = self.f_vega[b]
-                    zp = self.zp[b]
-                    R = self.R[b]
-                    syn_mag[b] = -2.5 * np.log10(simps(R(wave) * f_lambda * wave, wave) / v) + 20 + zp
-            except KeyError:
-                pass
-
-        # Calculate synthetic magnitude for WISE bands
-        # For ALLWISE, calculate AB magnitudes and then convert Vega magnitudes using corrections from
-        # Jarrett_2011_ApJ_735_112: "Conversion to the monochromatic AB system entails an additional 2.699, 3.339,
-        # 5.174, and 6.620 added to the Vega magnitudes for W1, W2, W3, and W4, respectively"
-        for b in ('W1', 'W2', 'W3', 'W4'):
-            try:
-                if self.obs_mag[b]:
-                    R = self.R[b]
-                    f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                            simps(R(wave) * 2.998e10 / wave, wave))
-                    syn_mag[b] = -2.5 * np.log10(f_nu) + 20 - 48.60 - self.zp[b]  # +20 to account for wave in A not um
-                self.syn_mag = syn_mag
-            except KeyError:
-                pass
-
-        # Process extra_data
-        if self.extra_data:
-            for x in self.extra_data:
-                b = x['tag']
-                R = self.R[b]
-                f_nu = (simps(f_lambda * R(wave) * wave, wave) /
-                        simps(R(wave) * 2.998e10 / (wave * 1e-8), wave))
-                syn_mag[b] = -2.5 * np.log10(f_nu) + self.zp[b]
+        # Process magnitudes
+        syn_mag = {}
+        syn_mag1 = {}
+        syn_mag2 = {}
+        lnlike_m = 0
+        chisq_m = 0
+        flux1 = flux/(1+flux_ratio)
+        flux2 = flux1*flux_ratio
+        for tag in self.obs_mag:
+            umag = self.obs_mag[tag]
+            fn = umag.tag  # filter name
+            photon = self.filters[fn]['photon']
+            vega = self.filters[fn]['vega']
+            T = self.filters[fn]['T']
+            zp = ufloat(self.filters[fn]['zp'], self.filters[fn]['zp_err'])
+            sigma_x = self.filters[fn]['sigma_x'] # Scatter around zp calib
+            s_ = ufloat(0, sigma_x)
+            if vega:
+                if photon:
+                    f_lambda = simpson(wave*flux*T(wave), x=wave)
+                    f_lambda1 = simpson(wave*flux1*T(wave), x=wave)
+                    f_lambda2 = simpson(wave*flux2*T(wave), x=wave)
+                else:
+                    f_lambda = simpson(flux*T(wave), x=wave)
+                    f_lambda1 = simpson(flux1*T(wave), x=wave)
+                    f_lambda2 = simpson(flux2*T(wave), x=wave)
+                syn_mag[tag] = -2.5*np.log10(f_lambda) + zp + s_
+                syn_mag1[tag] = -2.5*np.log10(f_lambda1) + zp + s_
+                syn_mag2[tag] = -2.5*np.log10(f_lambda2) + zp + s_
+            else:
+                # Using Bessel & Murphy, 2012 PASP 124 140, equation (A15)
+                pivot = self.filters[fn]['pivot']
+                c_ = pivot**2 * 1e-10 / 2.99792e8 
+                if photon:
+                    f_nu = simpson(wave*flux*T(wave), x=wave) * c_
+                    f_nu1 = simpson(wave*flux1*T(wave), x=wave) * c_
+                    f_nu2 = simpson(wave*flux2*T(wave), x=wave) * c_
+                else:
+                    f_nu = simpson(flux*T(wave), x=wave) * c_
+                    f_nu1 = simpson(flux1*T(wave), x=wave) * c_
+                    f_nu2 = simpson(flux2*T(wave), x=wave) * c_
+                syn_mag[tag] = -2.5*np.log10(f_nu) + zp + s_
+                syn_mag1[tag] = -2.5*np.log10(f_nu1) + zp + s_
+                syn_mag2[tag] = -2.5*np.log10(f_nu2) + zp + s_
+            z =  self.obs_mag[tag] - syn_mag[tag]
+            wt = 1/(z.s**2 + sigma_m**2) 
+            chisq_m += z.n**2 * wt
+            lnlike_m += -0.5 * (z.n**2 * wt - np.log(wt))
+        self.syn_mag = syn_mag
+        self.syn_mag1 = syn_mag1
+        self.syn_mag2 = syn_mag2
 
         # Process colors_data
-        if apply_colors and self.colors_data:
-            syn_col = {}
-            for x in self.colors_data:
-                b = x['tag']
-                mag = {}
-                f_interp = interp1d(wave, f_lambda)
+        color_types = [s.tag for s in self.obs_col.values()]
+        if len(color_types) > 0:
+            b_ = -2.5*np.log10(simpson(flux*self.uvby['b'](wave), x=wave))
+            y_ = -2.5*np.log10(simpson(flux*self.uvby['y'](wave), x=wave))
+            d = self.filters['by']  
+            zp_by = ufloat(d['zp'], d['zp_err'])
+            s_ = ufloat(0, d['sigma_x'])   # Scatter around zp calibration
+            by_ = b_ - y_ + zp_by + s_
+            if ('m1' in color_types) or ('c1' in color_types):
+                v_ = -2.5*np.log10(simpson(flux*self.uvby['v'](wave), x=wave))
+                d = self.filters['m1']
+                zp_m1 = ufloat(d['zp'], d['zp_err'])
+                s_ = ufloat(0, d['sigma_x'])  # Scatter around zp calibration
+                m1_ = (v_ - b_) - (b_ - y_) + zp_m1 + s_
+            if ('c1' in color_types):
+                u_ = -2.5*np.log10(simpson(flux*self.uvby['u'](wave), x=wave))
+                d = self.filters['c1']
+                zp_c1 = ufloat(d['zp'], d['zp_err'])
+                s_ = ufloat(0, d['sigma_x'])  # Scatter around zp calibration
+                c1_ = (u_ - v_) - (v_ - b_) + zp_c1 + s_
 
-                # Calculates the Stromgren synthetic colours
-                if x['type'] in ['by', 'm1', 'c1']:
-                    for m in ('u', 'v', 'b', 'y'):
-                        mag[m] = -2.5 * log10(simps(x['resp'][m] * f_interp(x['wave'][m]),
-                                                    x['wave'][m]) / x['vega_zp'][m])
-                    if x['type'] == 'by':
-                        syn_col[b] = mag['b'] - mag['y'] + x['zp'] + 0.003
-                    if x['type'] == 'm1':
-                        by_c = mag['b'] - mag['y']
-                        vb_c = mag['v'] - mag['b']
-                        syn_col[b] = vb_c - by_c + x['zp'] + 0.157
-                    if x['type'] == 'c1':
-                        uv_c = mag['u'] - mag['v']
-                        vb_c = mag['v'] - mag['b']
-                        syn_col[b] = uv_c - vb_c + x['zp'] + 1.088
+        syn_col = {}
+        lnlike_c = 0
+        chisq_c = 0
+        for tag in self.obs_col:
+            ucol = self.obs_col[tag]
+            if ucol.tag == 'by':
+                syn_col[tag] = by_
+            elif ucol.tag == 'm1':
+                syn_col[tag] = m1_
+            elif ucol.tag == 'c1':
+                syn_col[tag] = c1_
+            else:
+                raise NotImplementedError(f'Color {ucol.tag} not implemented')
+            z = self.obs_col[tag] - syn_col[tag]
+            wt = 1/(z.s**2 + sigma_c**2)
+            chisq_c += z.n ** 2 * wt
+            lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
+        self.syn_col = syn_col
 
-            self.syn_col = syn_col
-        else:
-            self.syn_col = None
+        # Flux ratios
+        lnlike_r = 0
+        chisq_r = 0
+        syn_rat = {}
+        for tag in self.obs_rat:
+            urat = self.obs_rat[tag]
+            fn = urat.tag  # filter name
+            photon = self.filters[fn]['photon']
+            T = self.filters[fn]['T']
+            if photon:
+                f_ratio = simpson(wave*flux_ratio*T(wave), x=wave)
+            else:
+                pivot = self.filters[fn]['pivot']
+                f_ratio = simpson(flux_ratio*T(wave), x=wave)
+            syn_rat[tag] = f_ratio
+            z =  self.obs_rat[tag] - f_ratio
+            wt = 1/(z.s**2 + sigma_r**2) 
+            chisq_r += z.n**2 * wt
+            lnlike_r += -0.5 * (z.n**2 * wt - np.log(wt))
+        self.syn_rat = syn_rat
 
-        # Compare observed and synthetic magnitudes and colours and calculate lnlike and fit chi-squared
-        lnlike_m, chisq = 0, 0
-        for k in self.syn_mag.keys():
-            try:
-                z = self.obs_mag[k] - self.syn_mag[k]
-                wt = 1 / (z.s ** 2 + sig_ext ** 2)
-                chisq += z.n ** 2 * wt
-                lnlike_m += -0.5 * (z.n ** 2 * wt - np.log(wt))
-            except KeyError:
-                pass
-
-        if apply_colors and self.syn_col:
-            lnlike_c = 0
-            for k in self.syn_col.keys():
-                z = self.obs_col[k] - self.syn_col[k]
-                wt = 1 / (z.s ** 2 + sig_col ** 2)
-                chisq += z.n ** 2 * wt
-                lnlike_c += -0.5 * (z.n ** 2 * wt - np.log(wt))
-            return chisq, lnlike_m, lnlike_c
-        else:
-            return chisq, lnlike_m
+        return chisq_m, lnlike_m, chisq_c, lnlike_c, lnlike_r, chisq_r
