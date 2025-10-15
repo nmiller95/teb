@@ -4,7 +4,7 @@ teb - a python tool for calculating fundamental effective [t]emperatures of [e]c
 Authors: Nikki Miller, Pierre Maxted (2025)
 """
 
-version = 20250826
+version = '2025.10.15'
 
 import os
 import sys

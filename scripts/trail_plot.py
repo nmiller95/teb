@@ -63,6 +63,10 @@ for i,p in enumerate(parameter_list):
         ax.set_ylabel(r'$\sigma_m$')
     elif p == 'sigma_m':
         ax.set_ylabel(r'$\sigma_r$')
+    elif p == 'logL_1':
+        labels.append(r'$\log L_1$')
+    elif p == 'logL_2':
+        labels.append(r'$\log L_2$')
     elif p == 'log_prob':
         ax.set_ylabel(r'$\log$(p)')
     else:

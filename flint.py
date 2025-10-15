@@ -49,7 +49,7 @@ def make_pathname(cache_path, params, source, binning):
         * bt-settl
         * bt-settl-cifist
     binning: int or None
-        Size of bins in Angstrom
+        Size of bins at 5000A in Angstrom
 
     Returns
     -------
@@ -252,6 +252,10 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
     """
     Bins spectrum (if binning is specified) and saves output to cache
 
+    Binning is done  on a logarithmic wavelength scale so that the bin size
+    specified at 500nm corresponds to equal resolution across a wide range of
+    wavelength. 
+
     Parameters
     ----------
     model: `astropy.table.Table`
@@ -263,11 +267,11 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
     reload: bool
         Whether to use existing file or load new version
     binning: int or None
-        Size of bins in Angstrom
+        Size of bins in Angstrom at 5000A.
     """
     model.sort('wave')
     model_g = model.group_by('wave')
-    model = model_g.groups.aggregate(np.mean)
+    model = model_g.groups.aggregate(np.mean) # To avoid duplicate entries?
     model['flux'].unit = 'FLAM'
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UnitsWarning)
@@ -276,11 +280,12 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
         if os.path.isfile(model_file_0) and reload:
             model.write(model_file_0, format='ascii', overwrite=True)
         if binning is not None:
-            model.add_column(model['wave'] // int(binning), name='bin')
+            model = model[model['wave'] > 10]  # Ignore X-ray flux
+            w = np.log10(1+binning/5000) # Bin width in log wave
+            model['bin'] = np.round(np.log10(model['wave'])/w).astype(int) 
             model_b = model.group_by('bin')
             model = model_b.groups.aggregate(np.mean)
             model.write(model_file, format='ascii', overwrite=True)
-
 
 def interpolate_two_models(params, upper_model, lower_model, upper_val, lower_val, which):
     """
@@ -332,7 +337,7 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     reload: bool
         Whether to use existing file or load new version
     binning: int or None
-        Size of bins in Angstrom
+        Size of bins in Angstrom at 5000A
 
     Returns
     -------
@@ -385,7 +390,7 @@ def interpolate_logg(s, params, source, cache_path, reload, binning):
     reload: bool
         Whether to use existing file or load new version
     binning: int or None
-        Size of bins in Angstrom
+        Size of bins in Angstrom at 5000A
 
     Returns
     -------
@@ -431,7 +436,7 @@ def interpolate_m_h(s, params, source, cache_path, reload, binning):
         reload: bool
             Whether to use existing file or load new version
         binning: int or None
-            Size of bins in Angstrom
+            Size of bins in Angstrom at 5000A
 
         Returns
         -------
@@ -498,7 +503,7 @@ class ModelSpectrum(SourceSpectrum):
         afe: float, optional
             Alpha fraction of model to load.
         binning: int or None, optional
-            Size of wavelength bins to use when binning the model.
+            Size of wavelength bins at 5000A to use when binning the model.
         reload: bool
             Whether to re-download the model from SVO.
         source: str

@@ -64,6 +64,10 @@ for i,p in enumerate(parameter_list):
         labels.append(r'$\sigma_c$')
     elif p == 'sigma_m':
         labels.append(r'$\sigma_m$')
+    elif p == 'logL_1':
+        labels.append(r'$\log L_1$')
+    elif p == 'logL_2':
+        labels.append(r'$\log L_2$')
     elif p == 'log_prob':
         labels.append(r'$\log$(p)')
     else:

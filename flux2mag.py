@@ -10,6 +10,14 @@ import astropy.units as u
 from functions import get_parallax
 from calspec import getprofile
 
+def convolve(wave, flux, filtertable, photon=False):
+    w = filtertable['Wavelength']
+    t = filtertable['Transmission']
+    if photon:
+        return simpson(w*np.interp(w, wave, flux)*t, x=w)
+    else:
+        return simpson(np.interp(w, wave, flux)*t, x=w)
+
 class Flux2mag:
     """
     Stores and computed magnitudes, colours and flux ratios
@@ -36,6 +44,7 @@ class Flux2mag:
 
         """
 
+
         def loadfiltertable(filtername, photon, newfilter=False):
             if newfilter:
                 filtertable, photon = getprofile(filtername, None)
@@ -48,13 +57,12 @@ class Flux2mag:
                 resp /= simpson(wave*resp, x=wave)
             else:
                 resp /= simpson(resp, x=wave)
-            T = interp1d(wave, resp, bounds_error=False, fill_value=0)
             if newfilter:
                 pivot = np.sqrt(simpson(resp*wave, x=wave) /
                                 simpson(resp/wave, x=wave))
-                return T, photon, pivot
+                return filtertable, photon, pivot
             else:
-                return T
+                return filtertable
 
         # Load photometry filter database
         dbpath = os.path.join('config','database.csv')
@@ -350,14 +358,9 @@ class Flux2mag:
             sigma_x = self.filters[fn]['sigma_x'] # Scatter around zp calib
             s_ = ufloat(0, sigma_x)
             if vega:
-                if photon:
-                    f_lambda = simpson(wave*flux*T(wave), x=wave)
-                    f_lambda1 = simpson(wave*flux1*T(wave), x=wave)
-                    f_lambda2 = simpson(wave*flux2*T(wave), x=wave)
-                else:
-                    f_lambda = simpson(flux*T(wave), x=wave)
-                    f_lambda1 = simpson(flux1*T(wave), x=wave)
-                    f_lambda2 = simpson(flux2*T(wave), x=wave)
+                f_lambda = convolve(wave, flux, T, photon)
+                f_lambda1 = convolve(wave, flux1, T, photon)
+                f_lambda2 = convolve(wave, flux2, T, photon)
                 syn_mag[tag] = -2.5*np.log10(f_lambda) + zp + s_
                 syn_mag1[tag] = -2.5*np.log10(f_lambda1) + zp + s_
                 syn_mag2[tag] = -2.5*np.log10(f_lambda2) + zp + s_
@@ -365,14 +368,9 @@ class Flux2mag:
                 # Using Bessel & Murphy, 2012 PASP 124 140, equation (A15)
                 pivot = self.filters[fn]['pivot']
                 c_ = pivot**2 * 1e-10 / 2.99792e8 
-                if photon:
-                    f_nu = simpson(wave*flux*T(wave), x=wave) * c_
-                    f_nu1 = simpson(wave*flux1*T(wave), x=wave) * c_
-                    f_nu2 = simpson(wave*flux2*T(wave), x=wave) * c_
-                else:
-                    f_nu = simpson(flux*T(wave), x=wave) * c_
-                    f_nu1 = simpson(flux1*T(wave), x=wave) * c_
-                    f_nu2 = simpson(flux2*T(wave), x=wave) * c_
+                f_nu = convolve(wave, flux, T, photon) * c_
+                f_nu1 = convolve(wave, flux1, T, photon) * c_
+                f_nu2 = convolve(wave, flux2, T, photon) * c_
                 syn_mag[tag] = -2.5*np.log10(f_nu) + zp + s_
                 syn_mag1[tag] = -2.5*np.log10(f_nu1) + zp + s_
                 syn_mag2[tag] = -2.5*np.log10(f_nu2) + zp + s_
@@ -387,20 +385,20 @@ class Flux2mag:
         # Process colors_data
         color_types = [s.tag for s in self.obs_col.values()]
         if len(color_types) > 0:
-            b_ = -2.5*np.log10(simpson(flux*self.uvby['b'](wave), x=wave))
-            y_ = -2.5*np.log10(simpson(flux*self.uvby['y'](wave), x=wave))
+            b_ = -2.5*np.log10(convolve(wave,flux,self.uvby['b']))
+            y_ = -2.5*np.log10(convolve(wave,flux,self.uvby['y']))
             d = self.filters['by']  
             zp_by = ufloat(d['zp'], d['zp_err'])
             s_ = ufloat(0, d['sigma_x'])   # Scatter around zp calibration
             by_ = b_ - y_ + zp_by + s_
             if ('m1' in color_types) or ('c1' in color_types):
-                v_ = -2.5*np.log10(simpson(flux*self.uvby['v'](wave), x=wave))
+                v_ = -2.5*np.log10(convolve(wave,flux,self.uvby['v']))
                 d = self.filters['m1']
                 zp_m1 = ufloat(d['zp'], d['zp_err'])
                 s_ = ufloat(0, d['sigma_x'])  # Scatter around zp calibration
                 m1_ = (v_ - b_) - (b_ - y_) + zp_m1 + s_
             if ('c1' in color_types):
-                u_ = -2.5*np.log10(simpson(flux*self.uvby['u'](wave), x=wave))
+                u_ = -2.5*np.log10(convolve(wave,flux,self.uvby['u']))
                 d = self.filters['c1']
                 zp_c1 = ufloat(d['zp'], d['zp_err'])
                 s_ = ufloat(0, d['sigma_x'])  # Scatter around zp calibration
@@ -434,11 +432,7 @@ class Flux2mag:
             fn = urat.tag  # filter name
             photon = self.filters[fn]['photon']
             T = self.filters[fn]['T']
-            if photon:
-                f_ratio = simpson(wave*flux_ratio*T(wave), x=wave)
-            else:
-                pivot = self.filters[fn]['pivot']
-                f_ratio = simpson(flux_ratio*T(wave), x=wave)
+            f_ratio = convolve(wave, flux_ratio, T, photon)
             syn_rat[tag] = f_ratio
             z =  self.obs_rat[tag] - f_ratio
             wt = 1/(z.s**2 + sigma_r**2) 

@@ -339,7 +339,7 @@ if __name__ == "__main__":
 
         i = np.isfinite(by)
         n = sum(i)
-        if sum(i) < 3:
+        if sum(i) < 4:
             m='Too few measurements for zero point calculation'
             raise ValueError(m)
         y = np.array(by)[i]
@@ -550,7 +550,7 @@ if __name__ == "__main__":
 
     i = np.isfinite(zps)
     n = sum(i)
-    if sum(i) < 3:
+    if sum(i) < 4:
         raise ValueError('Too few measurements for zero point calculation')
     y = np.array(zps)[i]
     yerr = starlist['e_mag'][i]

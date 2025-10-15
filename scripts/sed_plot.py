@@ -254,6 +254,8 @@ for row in mags:
     w = ft['Wavelength']/10
     r = ft['Transmission']
     r /= np.max(r) 
+    w = np.hstack([w[0]-1,w,w[-1]+1]) # So sides of profile drop to 0
+    r = np.hstack([0,r,0])
     r *= np.max(flux*scale)*filter_plot_height
     ax.semilogx(w, r, **filter_kwargs)
 
