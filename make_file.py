@@ -20,12 +20,12 @@ def make_file(star_name, overwrite):
 
     """
     # First collect all the photometry and parallax values needed.
-    flux2mag = Flux2mag(star_name)
-    star_name_ = star_name.replace(' ','_')
+    star_name_ = star_name.replace(' ', '_')
     print(f'Collecting photometric data and parallax for {star_name_}\n')
+    flux2mag = Flux2mag(star_name_)
     data_file_path = f'config/{star_name_}.yaml'
     if not overwrite and os.path.exists(data_file_path):
-        raise FileExistsError(f'{config_file_path} - use -o to over-write file')
+        raise FileExistsError(f'{data_file_path} - use -o to over-write file')
     c = open(data_file_path, 'w') 
     c.write('## Read the guidance at the bottom of this file before use.\n')
     c.write('#\n')
@@ -212,5 +212,4 @@ def make_file(star_name, overwrite):
     c.write('# type (str): Color name. Only Strömgren b-y (by), m1 (m1), c1 (c1)\n')
     c.write('# color (float): color value and error.\n')
     c.close()
-    print('\n')
-    
+    print('Star data file successfully created.\n')

@@ -4,26 +4,15 @@ from synphot import SourceSpectrum
 from astropy.table import Table
 from astropy.units import UnitsWarning
 import warnings
+import logging
 import os
 import pyvo as vo
-
 
 __all__ = ['ModelSpectrum']
 
 
-def make_tag(params):
-    """
-    Makes unique tag to use in saving the model as a local file
-
-    Parameters
-    ----------
-    params: tuple
-        Must contain teff, logg, m/h and a/Fe
-
-    Returns
-    -------
-    String unique to the model
-    """
+def make_tag(params: tuple):
+    """ Make unique tag from teff, logg, m/h and a/Fe to use in saving the model """
     teff, logg, m_h, afe = params
     if m_h >= 0:
         # if extending Teff range beyond 1000-9999 in the future, change this format
@@ -96,7 +85,6 @@ def load_spectrum_as_table(s, params, source):
         raise NameError("Specified model source is not supported.")
     # Restricts table to just the requested parameters
     s = s[cond_teff & cond_logg & cond_meta & cond_alpha]
-    # print(s[0])
     try:
         url = str(s[0]['Spectrum'], 'utf-8')
     except TypeError:
@@ -118,23 +106,9 @@ def load_spectrum_as_table(s, params, source):
             raise FileNotFoundError("Problem occurred in astropy.table.Table.read().")
 
 
-def nearest_teff_models(s, params):
-    """
-    Finds nearest temperature above and below the temperature specified
-
-    Parameters
-    ----------
-    s: `pyvo.service`
-        Service object from pyVO
-    params: tuple
-        Must contain teff, logg, m/h and a/Fe
-
-    Returns
-    -------
-    Upper and lower temperature that can be read into model
-    """
-    teff, _, _, _ = params
-    # Check which teffs are supported by the model
+def nearest_teff_models(s, params: tuple):
+    """ Finds nearest temperature above and below the specified Teff """
+    teff = params[0]
     s_list = []
     for val in s['teff']:
         if val not in s_list:
@@ -142,69 +116,36 @@ def nearest_teff_models(s, params):
     i = 0
     while teff > s_list[i]:
         i += 1
-    return s_list[i],  s_list[i-1]
+    return s_list[i], s_list[i-1]
 
 
-def valid_teff(params, source):
-    """
-    Checks if specified teff is supported by model choice
-
-    Parameters
-    ----------
-    params: tuple
-        Must contain teff, logg, m/h and a/Fe
-    source: str
-        Name of model database being used. Models supported are:
-        * bt-settl
-        * bt-settl-cifist
-
-    Returns
-    -------
-    True if teff supported, otherwise false
-    """
-    teff, _, _, _ = params
+def valid_teff(params: tuple, source: str):
+    """ Check if specified teff is supported by model choice (=source) """
+    teff = params[0]
     if source == 'bt-settl':
         if teff < 400 or teff > 70000:
             raise ValueError("Temperature outside range supported by BT-Settl models. Must be 400K <= Teff <= 70000K")
-
         elif teff % 100:
             return False
         elif 7000 <= teff < 12000:  # Grid density changes to 200K steps above 7000K
-            if teff % 200:
-                return False
-            else:
-                return True
+            return teff % 200 == 0
         elif teff >= 12000:
             raise ValueError("teb is not currently designed to handle such high Teff. \n"
                              "Open an issue on GitHub if you really want to go this hot...")
-        else:
-            return True
+        return True
     elif source == 'bt-settl-cifist':
         if teff < 1200 or teff > 7000:
-            raise ValueError("Temperature outside range supported by BT-Settl-CIFIST. Must be 400K <= Teff <= 7000K")
+            raise ValueError("Temperature outside range supported by BT-Settl-CIFIST. Must be 1200 <= Teff <= 7000K")
         elif teff % 100:
             return False
-        else:
-            return True
+        return True
+    else:
+        raise ValueError("Source must be 'bt-settl' or 'bt-settl-cifist'")
 
 
-def nearest_m_h_models(s, params):
-    """
-    Finds nearest M/H above and below the M/H specified
-
-    Parameters
-    ----------
-    s: `pyvo.service`
-        Service object from pyVO
-    params: tuple
-        Must contain teff, logg, m/h and a/Fe
-
-    Returns
-    -------
-    Upper and lower M/H that can be read into model
-    """
-    _, _, m_h, _ = params
-    # Check which M/H are supported by the model
+def nearest_m_h_models(s, params: tuple):
+    """ Find nearest [M/H] above and below the specified [M/H] """
+    m_h = params[2]
     s_list = []
     for val in s['meta']:
         if val not in s_list:
@@ -216,36 +157,18 @@ def nearest_m_h_models(s, params):
     return s_list[i],  s_list[i-1]
 
 
-def valid_m_h(params, source):
-    """
-    Checks if specified M/H is supported by model choice
-
-    Parameters
-    ----------
-    params: tuple
-        Must contain teff, logg, m/h and a/Fe
-    source: str
-        Name of model database being used. Models supported are:
-        * bt-settl
-        * bt-settl-cifist
-
-    Returns
-    -------
-    True if M/H supported, otherwise false
-    """
-    _, _, m_h, _ = params
+def valid_m_h(params: tuple, source: str):
+    """ Check if specified [M/H] is supported by model choice (=source) """
+    m_h = params[2]
     if source == 'bt-settl':
-        if m_h < -4.0 or m_h > 0.5:
+        supported = [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.3, 0.5]
+        if m_h < supported[0] or m_h > supported[-1]:
             raise ValueError("M/H outside range supported by BT-Settl models. Must be -4.0 <= M/H <= 0.5")
-        elif m_h in [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.3, 0.5]:
-            return True
-        else:
-            return False
+        return True if m_h in supported else False
     elif source == 'bt-settl-cifist':
-        if m_h == 0.0:
-            return True
-        else:
-            return False
+        return True if m_h == 0.0 else False
+    else:
+        raise ValueError("Source must be 'bt-settl' or 'bt-settl-cifist'")
 
 
 def process_spectrum(model, model_file, model_file_0, reload, binning):
@@ -283,23 +206,7 @@ def process_spectrum(model, model_file, model_file_0, reload, binning):
 
 
 def interpolate_two_models(params, upper_model, lower_model, upper_val, lower_val, which):
-    """
-    Performs linear interpolation on two models already loaded
-
-    Parameters
-    ----------
-    params
-    upper_model
-    lower_model
-    upper_val
-    lower_val
-    which: str
-        Which axis to interpolate along. Options: 'teff', 'logg' or 'm_h'
-
-    Returns
-    -------
-    Interpolated model
-    """
+    """ Perform linear interpolation on two models already loaded """
     diff = upper_val - lower_val
     if which == 'teff':
         nominal_val, _, _, _ = params
@@ -352,13 +259,11 @@ def interpolate_teff(s, params, source, cache_path, reload, binning):
     for t_step in (lower, upper):  # switched order for loading shouldn't affect interpolation
         t_params = (t_step, logg, m_h, afe)
         try:
-            print(f"* Loading cached {source} model: Teff={round(t_step)},"
-                  f"logg={logg}, [M/H]={round(m_h, 1)}")
+            logging.info(f"* Loading cached {source} model: Teff={round(t_step)}, logg={logg}, [M/H]={round(m_h, 1)}")
             model_file, _ = make_pathname(cache_path, t_params, source, binning)
             spectra.append(SourceSpectrum.from_file(model_file))
         except FileNotFoundError:
-            print(f"* Downloading {source} model:"
-                  f"Teff={round(t_step)}, logg={logg}, [M/H]={m_h}")
+            logging.info(f"* Downloading {source} model: Teff={round(t_step)}, logg={logg}, [M/H]={m_h}")
             t_model = load_spectrum_as_table(s, t_params, source)
             model_file, model_file_0 = make_pathname(cache_path, t_params, source, binning)
             process_spectrum(t_model, model_file, model_file_0, reload, binning)
@@ -398,13 +303,11 @@ def interpolate_logg(s, params, source, cache_path, reload, binning):
     for logg_step in (lower, upper):  # switched order for loading shouldn't affect interpolation
         logg_params = (teff, logg_step, m_h, afe)
         try:
-            print(f"* Loading cached {source} model:"
-            f"Teff={teff}, logg={round(logg_step,1)}, [M/H]={round(m_h,1)}")
+            logging.info(f"* Loading cached {source} model: Teff={teff}, logg={round(logg_step,1)}, [M/H]={round(m_h,1)}")
             model_file, _ = make_pathname(cache_path, logg_params, source, binning)
             spectra.append(SourceSpectrum.from_file(model_file))
         except FileNotFoundError:
-            print(f"* Downloading {source} model: Teff={teff},"
-                  f" logg={round(logg_step,1)}, [M/H]={m_h}")
+            logging.info(f"* Downloading {source} model: Teff={teff}, logg={round(logg_step,1)}, [M/H]={m_h}")
             logg_model = load_spectrum_as_table(s, logg_params, source)
             model_file, model_file_0 = make_pathname(cache_path, logg_params, source, binning)
             process_spectrum(logg_model, model_file, model_file_0, reload, binning)
@@ -451,13 +354,11 @@ def interpolate_m_h(s, params, source, cache_path, reload, binning):
         else:
             m_h_params = (teff, logg, m_h_step, afe)
         try:
-            print(f"* Loading cached {source} model:"
-                  f"Teff={teff}, logg={logg}, [M/H]={round(m_h_step, 1)}")
+            logging.info(f"* Loading cached {source} model: Teff={teff}, logg={logg}, [M/H]={round(m_h_step, 1)}")
             model_file,_ = make_pathname(cache_path,m_h_params,source,binning)
             spectra.append(SourceSpectrum.from_file(model_file))
         except FileNotFoundError:
-            print(f"* Downloading {source} model:"
-                  f"Teff={teff}, logg={logg}, [M/H] ={m_h_step}")
+            logging.info(f"* Downloading {source} model: Teff={teff}, logg={logg}, [M/H] ={m_h_step}")
             m_h_model = load_spectrum_as_table(s, m_h_params, source)
             model_file, model_file_0 = make_pathname(cache_path, m_h_params,
                                                      source, binning)
@@ -520,8 +421,7 @@ class ModelSpectrum(SourceSpectrum):
 
         # If file exists (i.e. already downloaded and binned) and you don't want to re-download it
         if os.path.isfile(model_file) and not reload:
-            print(f'* Loading cached {source} model: '
-                  f'Teff={teff}, logg={logg}, [M/H]={m_h}, binning={binning}')
+            logging.info(f"* Loading cached {source} model: Teff={teff}, logg={logg}, [M/H]={m_h}, binning={binning}")
             return SourceSpectrum.from_file(model_file)
 
         # Get un-binned file if already downloaded
@@ -531,16 +431,14 @@ class ModelSpectrum(SourceSpectrum):
 
         else:
             if source == 'bt-settl':
-                # print("Loading BT-Settl model(s) (Allard et al 2012, RSPTA 370. 2765A)\n "
-                #       "For more information on these models, see "
-                #       "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl")
+                # Using BT-Settl model(s) (Allard et al 2012, RSPTA 370. 2765A)
+                # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl
                 service = vo.dal.SSAService(
                     "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl&"
                 )
             elif source == 'bt-settl-cifist':
-                # print("Loading BT-Settl-CIFIST model(s) (Baraffe et al. 2015, A&A 577A, 42B)\n"
-                #       "For more information on these models, see "
-                #       "http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist")
+                # Using BT-Settl-CIFIST model(s) (Baraffe et al. 2015, A&A 577A, 42B)
+                # http://svo2.cab.inta-csic.es/theory/newov2/index.php?models=bt-settl-cifist
                 service = vo.dal.SSAService(
                     "http://svo2.cab.inta-csic.es/theory/newov2/ssap.php?model=bt-settl-cifist&"
                 )
@@ -557,8 +455,7 @@ class ModelSpectrum(SourceSpectrum):
                 if not logg % 0.5:
                     # [M/H] matches available models --> no interpolation needed
                     if valid_m_h(params, source):
-                        print(f'* Downloading {source} model: Teff={teff},'
-                              f'logg={logg}, [M/H]={m_h}')
+                        logging.info(f'* Downloading {source} model: Teff={teff},logg={logg}, [M/H]={m_h}')
                         model = load_spectrum_as_table(s, params, source)
                         process_spectrum(model, model_file, model_file_0,
                                          reload, binning)

@@ -1,7 +1,5 @@
-import os
 import numpy as np
 from uncertainties import ufloat, correlation_matrix
-from astropy.table import Table
 from synphot import units
 from scipy.special import legendre
 from scipy.integrate import simpson
@@ -9,26 +7,13 @@ import emcee
 from multiprocessing import Pool
 from scipy.interpolate import interp1d
 from astroquery.vizier import Vizier
-from zero_point import zpt
+import zpt_dr3 as zpt
 from collections import OrderedDict
+import logging
 
-def get_parallax(star_name, zp_correction=True):
-    """
-    Gets Gaia DR3 parallax and applied zeropoint correction for named star
 
-    Parameters
-    ----------
-    star_name: str
-        Source identifier recognised by Vizier.
-
-    zp_correction: bool
-        Whether or not to apply a zero-point correction
-
-    Returns
-    -------
-    Parallax + error with zeropoint correction (if applied) as ufloat 
-
-    """
+def get_parallax(star_name: str, zp_correction=True):
+    """ Retrieve Gaia DR3 parallax and apply zeropoint correction for named star """
     # Read data from Gaia DR3
     vizier_r = Vizier(columns=["**", "+_r"])
     v = vizier_r.query_object(star_name, catalog='I/355/gaiadr3')
@@ -41,47 +26,30 @@ def get_parallax(star_name, zp_correction=True):
     nu_eff_used_in_astrometry = v[0][0]['nueff']
     astrometric_params_solved = v[0][0]['Solved']
     # for 5-parameter solutions, pseudocolour is arbitrary.
-    if astrometric_params_solved == 31:
-        pseudocolour = 0
-    else:
-        pseudocolour = v[0][0]['pscol']
+    pseudocolour = 0 if astrometric_params_solved == 31 else v[0][0]['pscol']
 
     # Check whether target meets validity range described in docstring
     if phot_g_mean_mag < 6 or phot_g_mean_mag > 21:
-        print(f"G magnitude ({phot_g_mean_mag}) outside of supported range"
-              "(6-21).")
-        print("Setting parallax zero-point to mean offset based on quasars"
-              "(-0.021mas)")
+        logging.warning(f"G magnitude ({phot_g_mean_mag}) outside of supported range (6-21).")
+        logging.warning("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
         return plx - ufloat(-0.021, 0.013)
     elif nu_eff_used_in_astrometry < 1.1 or nu_eff_used_in_astrometry > 1.9:
-        print(f"nu_eff_used_in_astronometry of {nu_eff_used_in_astrometry}"
-              "outside of supported range (1.1-1.9).")
-        print("Setting parallax zero-point to mean offset based on quasars"
-              "(-0.021mas)")
+        logging.warning(f"nu_eff_used_in_astrometry {nu_eff_used_in_astrometry} outside of supported range (1.1-1.9)")
+        logging.warning("Setting parallax zero-point to mean offset based on quasars (-0.021mas)")
         return plx - ufloat(-0.021, 0.013)
 
     try:
-        # Calculate zeropoint for target
+        # Lindegren+2021 correction
         zpt.load_tables()
-        zp = zpt.get_zpt(
-            phot_g_mean_mag,
-            nu_eff_used_in_astrometry,
-            pseudocolour,
-            ecl_lat,
-            astrometric_params_solved)
+        zp = zpt.get_zpt(phot_g_mean_mag, nu_eff_used_in_astrometry, pseudocolour, ecl_lat, astrometric_params_solved)
 
         if phot_g_mean_mag <= 11:
-            # Flynn+2022 correction based on open and globular clusters
-            # Data from Table 1
+            # Flynn+2022 correction to Lindegren, based on open and globular clusters - data from Table 1
             bprp_arr = np.array([0.02, 0.19, 0.40, 0.65, 1.56, 2.72])
             offset = np.array([-10.8, -8.9, -4.4, 2.7, 9.8, 7.3])
             offset_err = np.array([3.3, 2.7, 2.7, 5.2, 1.9, 8.4])
-
-            # Linear interpolation
             f = interp1d(bprp_arr, offset)
             f_err = interp1d(bprp_arr, offset_err)
-            x = np.linspace(min(bprp_arr), max(bprp_arr), num=100,
-                            endpoint=True)
 
             # Apply color-based correction - a bit hacky
             bprp_target = v[0][0]['BP-RP']
@@ -90,23 +58,23 @@ def get_parallax(star_name, zp_correction=True):
 
             combined_zp = zp + correction / 1000
             combined_err = np.sqrt(0.013 ** 2 + (corr_err / 1000) ** 2)
-            # Return value of Lindegren et al 2021 adjusted by Flynn et al 2022
-            print('Correction to Gaia parallax from Flynn+2022 applied '
-                  f'{combined_zp:0.3f}')
+            logging.info(f'Correction to Gaia parallax from Flynn+2022 applied: {combined_zp:0.3f}')
             return plx - ufloat(combined_zp, combined_err)
 
         else:
-            # Return value of Lindegren et al 2021
-            print(f"Correction to Gaia parallax from Lindegren+2021 applied"
-                  f"{zp:0.3f}")
+            logging.info(f"Correction to Gaia parallax from Lindegren+2021 applied: {zp:0.3f}")
             return plx - ufloat(zp, 0.013)
 
-    except ValueError:
-        print('Problem with zero-point offset calculation: check value of'
-              'astrometric_params_solved')
-        print('Setting parallax zero-point to mean offset based on quasars'
-              '(-0.021mas)')
+    except ValueError as e:
+        logging.warning(f'Problem with zero-point offset calculation: {e}')
+        logging.warning(f'  phot_g_mean_mag={phot_g_mean_mag!r} ({type(phot_g_mean_mag)})')
+        logging.warning(f'  nu_eff_used_in_astrometry={nu_eff_used_in_astrometry!r} ({type(nu_eff_used_in_astrometry)})')
+        logging.warning(f'  pseudocolour={pseudocolour!r} ({type(pseudocolour)})')
+        logging.warning(f'  ecl_lat={ecl_lat!r} ({type(ecl_lat)})')
+        logging.warning(f'  astrometric_params_solved={astrometric_params_solved!r} ({type(astrometric_params_solved)})')
+        logging.warning('Setting parallax zero-point to mean offset based on quasars (-0.021mas)')
         return plx - ufloat(-0.021, 0.013)
+
 
 def initial_parameters(config_dict, star_data):
     """
@@ -158,12 +126,12 @@ def lnprob(param_list, param_dict, config_dict, flux2mag, flux_ratio_priors,
         OrderedDict of parameters in the same order as param_list
     config_dict: dict
         Dictionary containing configuration parameters, from config.yaml file
-    star_data: dict
-        Dictionary containing star data
     flux2mag: `flux2mag.Flux2Mag`
         Magnitude data and log-likelihood calculator (Flux2Mag object)
-    flux_ratio_priors: object
-        Instance of Flux_ratio_priors class
+    flux_ratio_priors: `flux_ratio_priors.FluxRatioPriors`
+        Instance of FluxRatioPriors class
+    star_data: dict
+        Dictionary containing star data
     wmin: int, optional
         Lower wavelength cut for model spectrum, in Angstroms
     wmax: int, optional
@@ -258,58 +226,54 @@ def lnprob(param_list, param_dict, config_dict, flux2mag, flux_ratio_priors,
     r = flux2mag(wave, flux, flux_ratio, sigma_m, sigma_r, sigma_c)
     chisq_m, lnlike_m, chisq_c, lnlike_c, lnlike_r, chisq_r = r
 
-
+    # Print info generated so far to logs
     if verbose:
-        print('')
-        print(' Magnitudes')
-        print(' Tag     Pivot Observed         Calculated                  O-C')
+        logging.info(' Magnitudes')
+        logging.info(' Tag     Pivot Observed         Calculated                  O-C')
         for tag in flux2mag.obs_mag:
             o = flux2mag.obs_mag[tag]
             c = flux2mag.syn_mag[tag]
             fn = o.tag  # filter name
             w = flux2mag.filters[fn]['pivot']
-            print(f" {tag:6s} {w:6.0f} {o:6.3f} {c:8.4f} {o-c:+9.4f}")
-        print(f' N = {len(flux2mag.obs_mag)}')
-        print(f' sigma_m = {sigma_m:0.4f}')
-        print(f' chi-squared = {chisq_m:0.2f}')
-        print('',flush=True)
+            logging.info(f" {tag:6s} {w:6.0f} {o:6.3f} {c:8.4f} {o-c:+9.4f}")
+        logging.info(f' N = {len(flux2mag.obs_mag)}')
+        logging.info(f' sigma_m = {sigma_m:0.4f}')
+        logging.info(f' chi-squared = {chisq_m:0.2f}')
 
         if len(flux2mag.obs_col) > 0:
-            print(' Colors')
-            print(' Tag     Color  Observed        Calculated       O-C')
+            logging.info(' Colors')
+            logging.info(' Tag     Color  Observed        Calculated       O-C')
         for tag in flux2mag.obs_col:
             o = flux2mag.obs_col[tag]
             c = flux2mag.syn_col[tag]
-            print(f" {tag:8s} {o.tag:5} {o:6.3f} {c:6.3f} {o-c:+6.3f}")
+            logging.info(f" {tag:8s} {o.tag:5} {o:6.3f} {c:6.3f} {o-c:+6.3f}")
         if len(flux2mag.obs_col) > 0:
-            print(f' N = {len(flux2mag.obs_col)}')
-            print(f' sigma_c = {sigma_c:0.4f}')
-            print(f' chi-squared = {chisq_c:0.2f}')
-        print('',flush=True)
+            logging.info(f' N = {len(flux2mag.obs_col)}')
+            logging.info(f' sigma_c = {sigma_c:0.4f}')
+            logging.info(f' chi-squared = {chisq_c:0.2f}')
 
         if len(flux2mag.obs_rat) > 0:
-            print(' Flux ratios')
-            print(' Tag    Pivot   Observed           Calculated     O-C')
+            logging.info(' Flux ratios')
+            logging.info(' Tag    Pivot   Observed           Calculated     O-C')
         for tag in flux2mag.obs_rat:
             o = flux2mag.obs_rat[tag]
             c = flux2mag.syn_rat[tag]
             fn = o.tag  # Filter name stored as a tag to observed mag
             w = flux2mag.filters[fn]['pivot']
             if o.s > 0.2:
-                print(f" {tag:6s} {w:8.1f} {o:7.1f} {c:7.1f}   {o-c:+6.2f}")
+                logging.info(f" {tag:6s} {w:8.1f} {o:7.1f} {c:7.1f}   {o-c:+6.2f}")
             elif o.s > 0.02:
-                print(f" {tag:6s} {w:8.1f} {o:7.2f} {c:7.2f}   {o-c:+6.2f}")
+                logging.info(f" {tag:6s} {w:8.1f} {o:7.2f} {c:7.2f}   {o-c:+6.2f}")
             elif o.s > 0.002:
-                print(f" {tag:6s} {w:8.1f} {o:7.3f} {c:7.3f}   {o-c:+6.3f}")
+                logging.info(f" {tag:6s} {w:8.1f} {o:7.3f} {c:7.3f}   {o-c:+6.3f}")
             elif o.s > 0.0002:
-                print(f" {tag:6s} {w:8.1f} {o:8.4f} {c:8.4f}   {o-c:+7.4f}")
+                logging.info(f" {tag:6s} {w:8.1f} {o:8.4f} {c:8.4f}   {o-c:+7.4f}")
             else:
-                print(f" {tag:6s} {w:8.1f} {o:7.4f} {c:7.4f}   {o-c:+6.4f}")
+                logging.info(f" {tag:6s} {w:8.1f} {o:7.4f} {c:7.4f}   {o-c:+6.4f}")
         if len(flux2mag.obs_rat) > 0:
-            print(f' N = {len(flux2mag.obs_rat)}')
-            print(f' sigma_r = {sigma_r:0.4f}')
-            print(f' chi-squared = {chisq_r:0.2f}')
-        print('',flush=True)
+            logging.info(f' N = {len(flux2mag.obs_rat)}')
+            logging.info(f' sigma_r = {sigma_r:0.4f}')
+            logging.info(f' chi-squared = {chisq_r:0.2f}')
 
     # Angular diameter log likelihood. See equation (1) from 
     # See http://mathworld.wolfram.com/BivariateNormalDistribution.html
@@ -348,8 +312,8 @@ def lnprob(param_list, param_dict, config_dict, flux2mag, flux_ratio_priors,
         # Synthetic flux ratio in RP band
         lRP = simpson(RRP*flux_2, x=wave) / simpson(RRP*flux_1, x=wave) 
         if verbose:
-            print(' Flux ratio priors')
-            print(' Band   Prior      Calculated    O-C')
+            logging.info(' Flux ratio priors')
+            logging.info(' Band   Prior      Calculated    O-C')
         chisq_frp = 0
         priors = flux_ratio_priors(lRP, teff1, teff2)
         for b in flux_ratio_priors.bands:
@@ -362,12 +326,12 @@ def lnprob(param_list, param_dict, config_dict, flux2mag, flux_ratio_priors,
                   simpson(RX*flux_1*wave, x=wave) )
             prior = priors[b]
             if verbose:
-                print(f' {b:<4s} {prior:0.3f}  {lX:0.3f}  {prior-lX:+0.3f}')
+                logging.info(f' {b:<4s} {prior:0.3f}  {lX:0.3f}  {prior-lX:+0.3f}')
             chisq_frp += prior.std_score(lX)**2
             # Apply the prior to overall log prior
             lnprior += -0.5*chisq_frp
         if verbose:
-            print(f' Flux ratio priors: chi-squared = {chisq_frp:0.2f}')
+            logging.info(f' Flux ratio priors: chi-squared = {chisq_frp:0.2f}')
 
     if np.isfinite(lnlike) and np.isfinite(lnprior):
         # Bolometric fluxes
@@ -393,7 +357,7 @@ def run_mcmc_simulations(least_squares_solution, args):
     ----------
     least_squares_solution: `scipy.optimize.OptimizeResult`
       Output of minimization
-    args: list
+    args:
       Parameters to pass through to lnprob
       args = (param_dict, config_dict, flux2mag, flux_ratio_priors, star_data)
 
@@ -430,16 +394,11 @@ def run_mcmc_simulations(least_squares_solution, args):
 
     with Pool() as pool:
         print("Running emcee burn-in ...")
-        dtype = [("Fbol_1", float), ("Fbol_2", float),
-                 ("logL_1", float), ("logL_2", float)]
-        sampler = emcee.EnsembleSampler(n_walkers, ndim, lnprob, args=args,
-                                        blobs_dtype=dtype, pool=pool)
-        state = sampler.run_mcmc(pos, n_burnin, 
-                                 progress=config_dict['mcmc_show_progress'])
+        dtype = [("Fbol_1", float), ("Fbol_2", float), ("logL_1", float), ("logL_2", float)]
+        sampler = emcee.EnsembleSampler(n_walkers, ndim, lnprob, args=args, blobs_dtype=dtype, pool=pool)
+        state = sampler.run_mcmc(pos, n_burnin, progress=config_dict['mcmc_show_progress'])
         sampler.reset()
         print("Running emcee sampler ...")
-        sampler.run_mcmc(pos, n_sample, 
-                         progress=config_dict['mcmc_show_progress'])
+        sampler.run_mcmc(pos, n_sample, progress=config_dict['mcmc_show_progress'])
 
     return sampler
-

@@ -2,15 +2,15 @@
 ## Read the guidance at the bottom of this file before use.
 
 ## Star name
-star_name: BEBOP-3  # Data must be in file <star_name>.yaml
-run_id: run01   # Prefix used in output save file
+star_name: HP_Dra  # Data must be in file <star_name>.yaml
+run_id: test   # Prefix used in output save file
 
 ## Flux ratio priors
 # List of bands to include in flux ratio priors
 # Comment out this section if your do not want to apply priors
 # on the flux ratio. See notes below for bands available.
 flux_ratio_priors:
-# - NUV
+ - NUV
  - BP
  - J
  - H
@@ -34,7 +34,7 @@ extinction_model: mwavg
 
 ## SED distortion  
 # Set n_coeffs=0 to disable use of distortion functions
-n_coeffs: 6         # Number of distortion coefficients to use.
+n_coeffs: 3         # Number of distortion coefficients to use.
 
 # Priors on external noise values for each data type
 # The error on the measurement x_i with quoted standard error e_i is assumed
@@ -49,7 +49,7 @@ n_coeffs: 6         # Number of distortion coefficients to use.
 # results.
 #
 sigma_m_prior: 0.1         # magnitude data
-sigma_r_prior: 0.005       # flux ratios
+sigma_r_prior: 0.1         # flux ratios
 sigma_c_prior: 0.1         # colors
 
 # MCMC and display options

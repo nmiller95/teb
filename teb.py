@@ -3,36 +3,41 @@ teb - a python tool for calculating fundamental effective [t]emperatures of [e]c
 
 Authors: Nikki Miller, Pierre Maxted (2025)
 """
-
-version = 20250818
+version = 20260925
 
 import os
 import sys
-import numpy as np
-##import _pickle as pickle  # cPickle is faster than pickle
 import getopt
 import yaml
+import warnings
+import logging
+from datetime import datetime
+import numpy as np
 from scipy.optimize import minimize
+from scipy.integrate import simpson
 from synphot import ReddeningLaw
-from astropy.table import Table, Column
+from astropy.table import Table
 from astropy.io import fits
-from flux_ratio_priors import Flux_ratio_priors
+import astropy.units as u
+from flux_ratio_priors import FluxRatioPriors
 from flint import ModelSpectrum
 from flux2mag import Flux2mag
 from functions import lnprob, initial_parameters, run_mcmc_simulations
 from make_file import make_file
-from uncertainties import ufloat
-from scipy.integrate import simpson
-import astropy.units as u
-import warnings
-from datetime import datetime
+
+warnings.filterwarnings('ignore', category=FutureWarning, module='uncertainties')  # formatting ufloats may change
+
+os.makedirs('output', exist_ok=True)
+log_dir = os.path.join('output', 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
 
 def inputs(argv):
     def usage():
         print('Usage: teb.py [-c config_file] [-m star_name]')
         print('\nOptions:')
         print('  -c, --config')
-        print('          Configuration file name')
+        print('          Configuration file name used to run teb (default: config.yaml)')
         print('  -m, --make-file')
         print('          Create new input star data file')
         print('  -o, --over-write')
@@ -42,14 +47,14 @@ def inputs(argv):
         print(' Replace spaces in the star name with \"_\", e.g. \"AI_Phe\"')
         print(' Star name is used to find data for the target from online catalogues.')
 
-    config_file = 'config.yaml'
-    overwrite = False
-    make_file_ = False
+    _config_file = 'config.yaml'
+    _overwrite = False
+    _make_file = False
+    _star_name = ''
     try:
-        opts, args = getopt.getopt(argv, "hoc:m:",
-                           ["help", "over-write", "config=", "make-file="])
-    except getopt.GetoptError as err:
-        print(err)
+        opts, _ = getopt.getopt(argv, "hoc:m:", ["help", "over-write", "config=", "make-file="])
+    except getopt.GetoptError as e:
+        print(e)
         usage()
         sys.exit(2)
 
@@ -58,40 +63,35 @@ def inputs(argv):
             usage()
             sys.exit()
         elif opt in ("-c", "--config"):
-            config_file = arg
+            _config_file = arg
         elif opt in ("-o", "--over-write"):
-            overwrite = True
+            _overwrite = True
         elif opt in ("-m", "--make-file"):
-            make_file_ = True
-            star_name = arg
-        elif opt in ("-o", "--over-write"):
-            overwrite = True
+            _make_file = True
+            _star_name = arg
         else:
             assert False, 'unhandled option'
 
-    if make_file_:
-        print(f'Making input file {star_name}.yaml\n')
-        make_file(arg, overwrite)
+    if _make_file:
+        print(f'Making input file {_star_name}.yaml\n')
+        make_file(_star_name, _overwrite)
         sys.exit()
 
-    return config_file, overwrite
+    return _config_file, _overwrite
 
 
 if __name__ == "__main__":
-
-    print("""
+    print(f"""
     teb -- calculate Teff for stars in eclipsing binaries
     
     Written by N. J. Miller and P. F. L. Maxted (2025)   
     Please cite: Miller, Maxted & Smalley (2020) and Maxted et al (2025)
     
     Most recent version of teb is stored at https://github.com/nmiller95/teb
+    This is version: {version}
 
-    Contact nikkimillerastro@gmail.com with questions or suggestions
-    
+    Contact: nikkimillerastro@gmail.com & p.maxted@keele.ac.uk
     """)
-
-    print(f' This version: {version}')
 
     # Load file names and options from command line inputs
     config_file, overwrite = inputs(sys.argv[1:])
@@ -106,13 +106,21 @@ if __name__ == "__main__":
     print(f' Loaded configuration for target {star_name} from {config_file}\n')
     run_id = config_dict['run_id']
     print(f' Run identifier run_id is {run_id}')
+    star_name_ = star_name.replace(' ', '_')
 
-    star_name_ = star_name.replace(' ','_')
+    # Set up logs
+    log_file = os.path.join(log_dir, f"{star_name_}_{run_id}.log")
+    logging.basicConfig(
+        filename=log_file,
+        filemode='w',  # fresh file each run; use 'a' if you want repeat attempts under same run_id appended to one file
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+    )
+
     data_file = f'{star_name_}.yaml'
     with open(os.path.join('config', data_file), 'r') as stream:
         star_data = yaml.safe_load(stream)
-    print(f' Loaded parallax and photometry data from {star_name_}.yaml')
-    print('\n', flush=True)
+    logging.info(f' Loaded parallax and photometry data from {star_name_}.yaml')
     
     teff1,teff2 = star_data['teff1'], star_data['teff2']
     logg1, logg2 = star_data['logg1'], star_data['logg2']
@@ -131,8 +139,7 @@ if __name__ == "__main__":
         frp_band_list  = config_dict['flux_ratio_priors']
         ctable1 = config_dict['color_table1']
         ctable2 = config_dict['color_table2']
-        flux_ratio_priors = Flux_ratio_priors(frp_band_list, teff1, teff2,
-                                              ctable1, ctable2)
+        flux_ratio_priors = FluxRatioPriors(frp_band_list, teff1, teff2, ctable1, ctable2)
         ctable1 = flux_ratio_priors.color_table1
         ctable2 = flux_ratio_priors.color_table2
         # Check if any flux ratio priors are not defined for nominal Teffs
@@ -163,7 +170,7 @@ if __name__ == "__main__":
                 m = f'Teff2 near upper limit for column {b} of {ctable1}'
                 warnings.warn(m)
     else:
-        flux_ratio_priors = Flux_ratio_priors([],6000,6000)
+        flux_ratio_priors = FluxRatioPriors([], 6000, 6000)
 
     # Load extinction model into config_dict
     ext_mod = config_dict['extinction_model']
@@ -179,24 +186,19 @@ if __name__ == "__main__":
     if model_library not in ['coelho-sed', 'bt-settl-cifist', 'bt-settl']:
         raise ValueError(f"Invalid model SED library: {model_library}")
     if model_library == 'bt-settl-cifist':
-        print(' Setting [Fe/H]=0 and [a/Fe]=0 for bt-settl-cifist models.')
+        logging.info(' Setting [Fe/H]=0 and [a/Fe]=0 for bt-settl-cifist models.')
         m_h, aFe = 0, 0
 
-    print("\n------------------------------------\n"
-          "Loading and interpolating model SEDs"
-          "\n------------------------------------")
-    print("\nPrimary component\n-----------------")
+    logging.info("Loading and interpolating model SEDs: primary component")
     spec1 = ModelSpectrum.from_parameters(teff1, logg1, m_h, aFe,
                                           binning=binning, reload=False,
                                           source=model_library)
-    print("\nSecondary component\n-------------------")
+    logging.info("Loading and interpolating model SEDs: secondary component")
     spec2 = ModelSpectrum.from_parameters(teff2, logg2, m_h, aFe,
                                           binning=binning, reload=False,
                                           source=model_library)
-    print('\n')
     # spec1 and spec2 go into config_dict because these are reference models.
-    # The distorted versions that are the best fit to the star data go in
-    # star_data
+    # The distorted versions that are the best fit to the star data go in star_data
     config_dict['spec1'],config_dict['spec2'] = spec1, spec2
 
     ############################################################
@@ -204,39 +206,34 @@ if __name__ == "__main__":
     param_dict = initial_parameters(config_dict, star_data)
 
     for p in  param_dict:
-        print(f'{p} = {param_dict[p]}')
-    print(' Exponential priors on external noise hyper-parameters')
-    print(f'  Width of prior on sigma_m = {config_dict["sigma_m_prior"]}')
-    print(f'  Width of prior on sigma_r = {config_dict["sigma_r_prior"]}')
+        logging.info(f'{p} = {param_dict[p]}')
+    logging.info(' Exponential priors on external noise hyper-parameters')
+    logging.info(f'  Width of prior on sigma_m = {config_dict["sigma_m_prior"]}')
+    logging.info(f'  Width of prior on sigma_r = {config_dict["sigma_r_prior"]}')
     if ('sigma_c_prior' in config_dict) and ('colors' in star_data):
-        print(f'  Width of prior on sigma_c = {config_dict["sigma_c_prior"]}')
-    print('', flush=True)
+        logging.info(f'  Width of prior on sigma_c = {config_dict["sigma_c_prior"]}')
 
     params = list(param_dict.values())
     args = (param_dict, config_dict, flux2mag, flux_ratio_priors, star_data)
     lnlike = lnprob(params, *args,  verbose=True)[0]
-    print('Initial log-likelihood = {:0.2f}'.format(lnlike))
-    print('',flush=True)
+    logging.info('Initial log-likelihood = {:0.2f}'.format(lnlike))
 
     ############################################################
     # Nelder-Mead optimisation
     nll = lambda *args: -lnprob(*args)[0]
-    print("Finding initial solution with Nelder-Mead optimisation...")
+    logging.info("Finding initial solution with Nelder-Mead optimisation...")
     soln = minimize(nll, params, args=args, method='Nelder-Mead')
 
     # Print solutions
     for pn, pv in zip(param_dict, soln.x):
         if pv  > 1000:
-            print(f'{pn} = {pv:6.1f}')
+            logging.info(f'{pn} = {pv:6.1f}')
         else:
-            print(f'{pn} = {pv:0.6f}')
-    print('',flush=True)
+            logging.info(f'{pn} = {pv:0.6f}')
 
     # Re-initialise log likelihood function with optimised solution
     lnlike = lnprob(soln.x, *args, verbose=True)[0]
-    # Print solutions
-    print('Optimised log-likelihood = {:0.2f}'.format(lnlike))
-    print('',flush=True)
+    logging.info('Optimised log-likelihood = {:0.2f}'.format(lnlike))
 
     ############################################################
     # Run MCMC simulations
@@ -244,13 +241,13 @@ if __name__ == "__main__":
 
     # Retrieve output from sampler and print key attributes
     af = sampler.acceptance_fraction
-    print(f'\n Median acceptance fraction = {np.median(af)}')
+    logging.info(f' Median acceptance fraction = {np.median(af)}')
     n_thin = config_dict['mcmc_n_thin']
     flat_samples = sampler.get_chain(thin=n_thin, flat=True)
     flat_lnprob = sampler.get_log_prob(thin=n_thin, flat=True)
     best_index = np.argmax(flat_lnprob)
     best_lnlike = np.max(flat_lnprob)
-    print(f'\n Best log(likelihood) {best_lnlike:0.2f}')
+    logging.info(f' Best log(likelihood) {best_lnlike:0.2f}')
     best_pars = flat_samples[best_index,:]
 
     ### Systematic errors on Teff, logL and Fbol
@@ -291,12 +288,11 @@ if __name__ == "__main__":
         if pn == 'teff2':
             v_str = f'{val:.0f}'
             e_str = f'{err:.0f} (rnd) +/- {syserr_Teff_2:.0f} (sys)'
-        print(f' {pn} = {v_str} +/- {e_str}')
+        logging.info(f' {pn} = {v_str} +/- {e_str}')
     lnlike_best = lnprob(best_pars, *args,  verbose=True)[0]
 
     # AIC and BIC calculation
-    # Counts the number of photometry data used in order to calculate the AIC
-    # and BIC
+    # Counts the number of photometry data used
     n_photometry_data = len(flux2mag.obs_mag)
     n_photometry_data += len(flux2mag.obs_rat)
     n_photometry_data += len(flux2mag.obs_col)
@@ -308,14 +304,10 @@ if __name__ == "__main__":
     n_par += 2*config_dict['n_coeffs'] 
     aic = 2*n_par - 2*lnlike_best
     bic = n_par*np.log(n_photometry_data) - 2*lnlike_best
-    print(f' n_obs: {n_photometry_data}')
-    print(f' n_par: {n_par}')
-    print(f' AIC: {aic:0.3f}')
-    print(f' BIC: {bic:0.3f}')
-    print('',flush=True)
-
-    # Prepare output directory to save output data and chains
-    os.makedirs('output', exist_ok=True)
+    logging.info(f' n_obs: {n_photometry_data}')
+    logging.info(f' n_par: {n_par}')
+    logging.info(f' AIC: {aic:0.3f}')
+    logging.info(f' BIC: {bic:0.3f}')
 
     # Construct output FITS file
     hdul = fits.HDUList(fits.PrimaryHDU())
@@ -338,8 +330,8 @@ if __name__ == "__main__":
         paramtable[p] = blobs[p]
         val = np.mean(blobs[p])
         err = np.std(blobs[p])
+        logscale = np.floor(-np.log10(val))
         if 'Fbol' in p:
-            logscale = np.floor(-np.log10(val))
             val *= 10**logscale
             err *= 10**logscale
             units = f'e-{logscale:0.0f} erg cm−2 s−1'

@@ -1,7 +1,6 @@
 import numpy as np
 import os
 import sys
-from astropy.io import fits
 from astropy.table import Table
 from astropy.table import join
 from astropy.units import UnitsWarning
@@ -13,6 +12,7 @@ import getopt
 import requests
 import xml.etree.ElementTree as ET
 
+
 def getprofile(filtername, photon):
     fileroot = filtername.replace('/','.')
     # First look for user-defined transmission function in FITS file
@@ -22,7 +22,7 @@ def getprofile(filtername, photon):
         if photon == -1:
             return filtertable
         photon_ = filtertable.meta['PHOTON']
-        if (photon == None):
+        if photon is None:
             return filtertable, photon_
         if photon and not photon_:
             print(' * Warning - Detector type Photon counter set by user *'
